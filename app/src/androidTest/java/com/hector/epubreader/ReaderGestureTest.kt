@@ -20,6 +20,7 @@ import com.hector.epubreader.data.preferences.ReaderPreferences
 import com.hector.epubreader.epub.EpubParser
 import com.hector.epubreader.ui.reader.ReaderLocation
 import com.hector.epubreader.ui.reader.ReaderWebView
+import com.hector.epubreader.ui.reader.lineTopScript
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
@@ -28,6 +29,26 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
 class ReaderGestureTest {
+    // True when no rendered text line is split by the top edge of the viewport.
+    private val noCutLineScript = """
+        (function() {
+          var y = window.scrollY;
+          var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT), n;
+          while ((n = walker.nextNode())) {
+            if (!n.nodeValue || !n.nodeValue.trim()) continue;
+            var range = document.createRange();
+            range.selectNodeContents(n);
+            var rects = range.getClientRects();
+            for (var i = 0; i < rects.length; i++) {
+              var top = Math.round(rects[i].top + window.scrollY);
+              var bottom = Math.round(rects[i].bottom + window.scrollY);
+              if (top < y - 1 && y < bottom) return false;
+            }
+          }
+          return true;
+        })()
+    """.trimIndent()
+
     private fun findWebView(view: View): WebView? {
         if (view is WebView) return view
         if (view is ViewGroup) for (index in 0 until view.childCount) {
@@ -61,8 +82,10 @@ class ReaderGestureTest {
                 if (mode == "pages") scenario.onActivity { ready.set(false); preferences.value = preferences.value.copy(readingMode = mode) }
                 val deadline = SystemClock.uptimeMillis() + 30_000
                 while (!ready.get() && !failed.get() && SystemClock.uptimeMillis() < deadline) SystemClock.sleep(50)
-                assertTrue("Reader did not become ready", ready.get())
+                assertTrue("Reader did not become ready (failed=${failed.get()})", ready.get())
                 assertFalse(failed.get())
+                val webView = AtomicReference<WebView>()
+                val turnedFrom = AtomicInteger(-1)
                 scenario.onActivity { activity ->
                     val web = requireNotNull(findWebView(activity.window.decorView))
                     assertFalse(web.isVerticalScrollBarEnabled)
@@ -94,12 +117,39 @@ class ReaderGestureTest {
                     assertEquals(before + 1, next.get())
                     assertEquals(0f, pull.get(), 0f)
                     if (mode == "pages") {
-                        val previousY = web.scrollY
                         send(MotionEvent.ACTION_DOWN, threshold, 120)
                         send(MotionEvent.ACTION_MOVE, -threshold, 140)
                         send(MotionEvent.ACTION_UP, -threshold, 160)
-                        assertTrue("A side swipe must turn back a page", web.scrollY < previousY)
+                        turnedFrom.set(web.scrollY)
+                        webView.set(web)
                     }
+                }
+                if (mode == "pages") {
+                    // Page turns are animated, so the new offset is reached asynchronously.
+                    val web = requireNotNull(webView.get())
+                    val previousY = turnedFrom.get()
+                    val turnDeadline = SystemClock.uptimeMillis() + 10_000
+                    while (web.scrollY >= previousY && SystemClock.uptimeMillis() < turnDeadline) SystemClock.sleep(50)
+                    assertTrue("A side swipe must turn back a page", web.scrollY < previousY)
+                    var last = -1
+                    var stable = 0
+                    val settleDeadline = SystemClock.uptimeMillis() + 10_000
+                    while (stable < 8 && SystemClock.uptimeMillis() < settleDeadline) {
+                        val current = web.scrollY
+                        if (current == last) stable++ else { stable = 0; last = current }
+                        SystemClock.sleep(60)
+                    }
+                    val jsAlive = AtomicReference<String?>(null)
+                    val snapProbe = AtomicReference<String?>(null)
+                    val aligned = AtomicReference<String?>(null)
+                    scenario.onActivity {
+                        web.evaluateJavascript("2 + 2") { jsAlive.set(it) }
+                        web.evaluateJavascript(lineTopScript(web.scrollY, false)) { snapProbe.set(it) }
+                        web.evaluateJavascript(noCutLineScript) { aligned.set(it) }
+                    }
+                    val alignDeadline = SystemClock.uptimeMillis() + 10_000
+                    while ((aligned.get() == null || snapProbe.get() == null || jsAlive.get() == null) && SystemClock.uptimeMillis() < alignDeadline) SystemClock.sleep(50)
+                    assertEquals("The top of the new page must not cut a line of text (scrollY=${web.scrollY}, js=${jsAlive.get()}, snap=${snapProbe.get()})", "true", aligned.get())
                 }
             }
         } finally {

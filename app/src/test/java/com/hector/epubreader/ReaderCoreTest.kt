@@ -70,10 +70,11 @@ class ReaderCoreTest {
         assertTrue(css.contains("color-scheme: dark"))
     }
     @Test fun horizontalPageGesturesAdvanceAndReturnAtChapterEnd() {
-        assertEquals(940, nextPageOffset(0, 2500, 1000, 1))
-        assertEquals(1880, nextPageOffset(940, 2500, 1000, 1))
-        assertEquals(2500, nextPageOffset(1880, 2500, 1000, 1))
-        assertEquals(1880, nextPageOffset(2500, 2500, 1000, -1))
+        assertEquals(1000, nextPageOffset(0, 2500, 1000, 1))
+        assertEquals(2000, nextPageOffset(1000, 2500, 1000, 1))
+        assertEquals(2500, nextPageOffset(2000, 2500, 1000, 1))
+        assertEquals(1500, nextPageOffset(2500, 2500, 1000, -1))
+        assertEquals(500, nextPageOffset(1500, 2500, 1000, -1))
         assertEquals(0, nextPageOffset(0, 2500, 1000, -1))
     }
 }

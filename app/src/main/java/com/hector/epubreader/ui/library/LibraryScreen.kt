@@ -123,7 +123,7 @@ private fun BookCover(book: BookEntity, modifier: Modifier) {
 
 @Composable
 private fun BookText(book: BookEntity) {
-    Text(book.title, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    Text(book.title, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
     Text(book.author ?: stringResource(R.string.unknown_author), modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
     Text(stringResource(R.string.progress_percent, (book.progress * 100).toInt()), modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
 }

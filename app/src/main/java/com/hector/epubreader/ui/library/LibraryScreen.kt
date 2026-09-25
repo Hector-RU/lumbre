@@ -21,7 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -40,7 +40,7 @@ fun LibraryScreen(state: LibraryUiState, preferences: ReaderPreferences, search:
     var query by rememberSaveable { mutableStateOf("") }
     var deleting by remember { mutableStateOf<BookEntity?>(null) }
     var info by remember { mutableStateOf<BookEntity?>(null) }
-    val locale = LocalContext.current.resources.configuration.locales[0]
+    val locale = LocalConfiguration.current.locales[0]
     val books = remember(state.books, query, preferences.sort, preferences.ascending) {
         val list = state.books.filter { it.title.contains(query, true) || it.author.orEmpty().contains(query, true) }
         val sorted = when (preferences.sort) {

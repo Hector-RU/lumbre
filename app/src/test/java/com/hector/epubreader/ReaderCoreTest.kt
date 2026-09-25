@@ -1,0 +1,80 @@
+package com.hector.epubreader
+
+import com.hector.epubreader.data.preferences.ReaderPreferences
+import com.hector.epubreader.epub.*
+import com.hector.epubreader.epub.renderer.EpubContent
+import com.hector.epubreader.ui.reader.nextPageOffset
+import org.jsoup.Jsoup
+import org.junit.Assert.*
+import org.junit.Test
+
+class ReaderCoreTest {
+    @Test fun limitsActualInflatedStreamIncludingSkippedBytes() {
+        BoundedInputStream(ByteArray(20).inputStream(), 10).use { stream ->
+            assertEquals(8, stream.read(ByteArray(8)))
+            assertThrows(InvalidEpub::class.java) { stream.skip(4) }
+        }
+    }
+    @Test fun allowsAnExactlyBoundedResource() {
+        BoundedInputStream(byteArrayOf(1, 2).inputStream(), 2).use { stream ->
+            assertEquals(1, stream.read())
+            assertEquals(2, stream.read())
+            assertEquals(-1, stream.read())
+        }
+    }
+    @Test fun resolvesRelativeAndEncodedResources() {
+        assertEquals("OPS/Images/a b+c.png", EpubPaths.resolve("OPS/Text/ch.xhtml", "../Images/a%20b+c.png#frag"))
+        assertEquals("OPS/ch.xhtml", EpubPaths.resolve("OPS/ch.xhtml", "#note"))
+        assertEquals("nota uno+dos", EpubPaths.fragment("ch.xhtml#nota%20uno+dos"))
+        assertNull(EpubPaths.fragment("ch.xhtml"))
+    }
+    @Test fun rejectsRemoteAndEscapingPaths() {
+        listOf("../../../secret", "%2e%2e/%2e%2e/secret", "https://example.com", "//example.com/book", "file:///secret", "a\\b", "%2Fetc/passwd").forEach { href ->
+            assertThrows(href, InvalidEpub::class.java) { EpubPaths.resolve("OPS/book.opf", href) }
+        }
+    }
+    @Test fun sanitizesExecutableMarkupButKeepsFormatting() {
+        val input = """<html><head><script>alert(1)</script><base href="https://bad.test"/><meta http-equiv="refresh" content="0;url=https://bad.test"/></head><body onload="bad()"><h1>Título</h1><p><em>Texto</em><img src="cover.png" onerror="bad()"/></p><iframe src="bad"></iframe><a href="javascript:bad()">Mal</a><a href="two.xhtml#note">Nota</a><form><input/></form></body></html>"""
+        val output = Jsoup.parse(EpubContent.render(input.toByteArray(), ReaderPreferences()))
+        assertTrue(output.select("script, iframe, form, base, meta[http-equiv], [onload], [onerror]").isEmpty())
+        assertEquals("Texto", output.selectFirst("em")?.text())
+        assertEquals("cover.png", output.selectFirst("img")?.attr("src"))
+        assertEquals("", output.select("a")[0].attr("href"))
+        assertEquals("two.xhtml#note", output.select("a")[1].attr("href"))
+        assertTrue(output.select("style").html().contains("font-size:20.0px"))
+    }
+    @Test fun computesAndBoundsProgress() {
+        assertEquals(0.25f, ReadingProgress.fraction(0, 1f, 4), 0.0001f)
+        assertEquals(0.625f, ReadingProgress.fraction(2, 0.5f, 4), 0.0001f)
+        assertEquals(1f, ReadingProgress.fraction(99, 9f, 4), 0.0001f)
+        assertEquals(0f, ReadingProgress.fraction(0, 0f, 0), 0.0001f)
+    }
+    @Test fun validatesPreferencesAtStorageBoundary() {
+        assertFalse(ReaderPreferences().dynamicColors)
+        val p = ReaderPreferences(fontSize = Float.NaN, lineHeight = 100f, horizontalMargin = -100, font = "bad;css", appTheme = "unknown", interfaceColor = "invalid", readingMode = "invalid").validated()
+        assertEquals(20f, p.fontSize)
+        assertEquals(2.2f, p.lineHeight)
+        assertEquals(8, p.horizontalMargin)
+        assertEquals("serif", p.font)
+        assertEquals("system", p.appTheme)
+        assertEquals("green", p.interfaceColor)
+        assertEquals("scroll", p.readingMode)
+    }
+
+    @Test fun renderedHtmlUsesProvidedAppColors() {
+        val colors = EpubContent.Colors("#123456", "#F0F0F0", "#ABCDEF", "#445566", true)
+        val html = EpubContent.render("<html><body><p>Texto</p></body></html>".toByteArray(), ReaderPreferences(readingMode = "pages"), colors = colors)
+        val css = Jsoup.parse(html).selectFirst("style")!!.html()
+        assertTrue(css.contains("background:#123456"))
+        assertTrue(css.contains("color:#F0F0F0"))
+        assertTrue(css.contains("color-scheme: dark"))
+    }
+    @Test fun horizontalPageGesturesAdvanceAndReturnAtChapterEnd() {
+        assertEquals(940, nextPageOffset(0, 2500, 1000, 1))
+        assertEquals(1880, nextPageOffset(940, 2500, 1000, 1))
+        assertEquals(2500, nextPageOffset(1880, 2500, 1000, 1))
+        assertEquals(1880, nextPageOffset(2500, 2500, 1000, -1))
+        assertEquals(0, nextPageOffset(0, 2500, 1000, -1))
+    }
+}
+

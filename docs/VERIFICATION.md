@@ -1,0 +1,96 @@
+# Verification log
+
+Date: 24 September 2026 (America/Santo_Domingo).
+
+## Observed results
+
+| Check | Result |
+| --- | --- |
+| Original build | Passed |
+| JVM tests | 19 passed, 0 failed |
+| Android tests, AOSP 35 / API 35 / x86_64 / WHPX | 5 passed, 0 failed |
+| Lint debug | 0 errors; 15 warnings about newer dependency versions |
+| Debug APK | Built and installed on the emulator |
+| Release APK | Built without a publishing signature |
+| SAF → library → reader flow | Verified with `lumbre-demo.epub` |
+| Size, theme and table of contents | Changes visible and persisted |
+| Force close and reopen | Restored chapter 2, dark theme, font size 26 and the same section of paragraphs 2–3 |
+| Search for "esperanza" | Results in both chapters; jump and highlight visible |
+| Bookmark | Created, listed and restored in chapter 2 |
+| Landscape and portrait | Controls reachable and content rendered |
+| Delete from library | Confirmation shown; empty library and the original kept in Downloads (65,206 bytes) |
+
+Screenshots `01` to `13` in `docs/screenshots/` document the run. Comparing the previous and
+restored positions showed a difference of about 3 pixels after hiding the system bars again,
+keeping the same text. The position is a scroll fraction, not a CFI; textual accuracy across
+different geometries is not claimed.
+
+The test infrastructure was fixed during the run: its standalone ContentProvider is implemented
+in Java so it does not depend on the Kotlin runtime of the instrumented process.
+The application and its features are implemented in Kotlin.
+
+## Build
+
+The original base built before features were integrated. SDK, AGP, Gradle and the package are kept.
+Building the application with Compose, Room, DataStore and the reader also passes.
+
+Full verification command:
+
+```powershell
+.\gradlew.bat testDebugUnitTest lintDebug assembleDebug assembleRelease assembleDebugAndroidTest
+```
+
+`lintDebug` uses no baseline and does not disable error checks. Dependency update warnings stay
+visible: Kotlin/AGP/SDK are not migrated just because of them. The WebView gesture warning is
+justified locally: `GestureDetector` calls `performClick()` and an accessibility action is
+published for the controls.
+
+## Tests
+
+- JVM: EPUB 3 nav, EPUB 2 NCX, spine order, metadata, cover, fallback, corrupted ZIP,
+  truncated file, encryption, traversal, ambiguous paths, external entities and read limits.
+- JVM: sanitization, relative/encoded resources, preferences, progress and the actually inflated
+  byte limit, including reads performed through `skip`.
+- Android: real import through the test APK ContentProvider, private copy, duplicates, cover,
+  search and reopening of the persisted position.
+- Android: Room and bookmark cascade; empty library and theme switching in Compose.
+- Android: WebView without JavaScript or file/network access, scrollable content,
+  real height change when the font size increases and position preservation within 0.025 tolerance.
+
+Reports generated in `app/build/reports/tests`, `app/build/reports/androidTests` and
+`app/build/reports/lint-results-debug.html`.
+
+## Manual acceptance test
+
+Use `docs/samples/lumbre-demo.epub` and an Android 26 or newer device.
+
+1. Install the debug build and open the empty library.
+2. Add an EPUB through SAF; check cover, title and author.
+3. Open, read and scroll; hide/show the controls with a central tap.
+4. Change font size and theme from the appearance panel.
+5. Open the table of contents and navigate to another chapter.
+6. Search for "esperanza" and open a result.
+7. Add a bookmark, scroll and return from the bookmark list.
+8. Leave, close the app and reopen the book; check chapter and position.
+9. Rotate the device and check that reading and controls remain usable.
+10. Delete the book after confirmation; check that the original EPUB is still available.
+
+## Android test environment
+
+The local SDK included the emulator executable and an incomplete Android 37.2 download,
+with no AVDs and no connected devices. A separate, official Android 35 AOSP x86_64 image is
+prepared under `test-artifacts/` (ignored by Git). Official distribution SHA-1:
+`2d857d170c0d1b827149565da34b3383e5306f7f`.
+
+The script `scripts/Start-TestEmulator.ps1` uses that image and a temporary project AVD,
+with WHPX acceleration when available, without touching the user's own virtual devices.
+It does not download or accept licenses automatically; the local SDK already has them installed.
+When it finishes, the emulator is shut down and the image, downloads and temporary AVD are removed
+to free space. APKs, reports, screenshots and scripts are kept; repeating the run requires
+a device or preparing a test image again.
+
+## Verification scope
+
+Automated validation does not replace testing against a wide EPUB collection, TalkBack,
+large-scale fonts and different Android System WebView versions. The release is produced without
+a publishing signature; that signature requires the owner's key.

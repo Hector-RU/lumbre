@@ -1,0 +1,28 @@
+Lumbre — componentes de código abierto
+
+AndroidX, Jetpack Compose, Room y DataStore
+Copyright The Android Open Source Project. Apache License 2.0.
+https://android.googlesource.com/platform/frameworks/support/
+
+Material Components for Android
+Copyright Google LLC. Apache License 2.0.
+https://github.com/material-components/material-components-android
+
+Kotlin y kotlinx.coroutines
+Copyright JetBrains s.r.o. y colaboradores. Apache License 2.0.
+https://github.com/JetBrains/kotlin
+https://github.com/Kotlin/kotlinx.coroutines
+
+Coil
+Copyright Coil Contributors. Apache License 2.0.
+https://github.com/coil-kt/coil
+
+Okio
+Copyright Square, Inc. Apache License 2.0.
+https://github.com/square/okio
+
+jsoup
+Copyright Jonathan Hedley. Licencia MIT (texto completo adjunto).
+https://jsoup.org/license
+
+No se distribuyen archivos de fuentes adicionales.

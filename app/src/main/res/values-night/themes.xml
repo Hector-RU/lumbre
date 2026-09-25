@@ -1,0 +1,8 @@
+<resources>
+    <style name="Theme.EpubReader" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/lumbre_green_light</item>
+        <item name="colorOnPrimary">@color/black</item>
+        <item name="colorSecondary">@color/lumbre_green_light</item>
+        <item name="android:windowBackground">@color/lumbre_background_dark</item>
+    </style>
+</resources>

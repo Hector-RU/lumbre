@@ -1,0 +1,8 @@
+<resources>
+    <color name="lumbre_green">#45634A</color>
+    <color name="lumbre_green_light">#B5CCB4</color>
+    <color name="lumbre_background">#FAFAF4</color>
+    <color name="lumbre_background_dark">#151815</color>
+    <color name="black">#000000</color>
+    <color name="white">#FFFFFF</color>
+</resources>

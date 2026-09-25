@@ -1,5 +1,7 @@
 # Lumbre
 
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
 Android EPUB reader written in Kotlin and Jetpack Compose. It provides a private library,
 offline reading and a Material 3 interface in Spanish, built on top of the existing
 Android Studio project.
@@ -79,6 +81,10 @@ Screenshots from the Android 35 emulator: [library](docs/screenshots/02-library.
 Verification performed: **19 JVM tests + 5 Android tests passing**; Lint reports no errors.
 SAF import, reading, appearance controls, table of contents, force close, restoration, search,
 bookmarks and deletion without removing the original EPUB were also checked manually.
+
+## License
+
+Lumbre is distributed under the Apache License 2.0; see [LICENSE](LICENSE).
 
 ## Dependencies and licenses
 

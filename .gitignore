@@ -1,0 +1,25 @@
+# Gradle
+.gradle/
+.kotlin/
+**/build/
+
+# IDE (Android Studio / IntelliJ)
+.idea/
+captures/
+
+# Local machine configuration
+local.properties
+
+# Signing material must never be committed
+*.jks
+*.keystore
+keystore.properties
+
+# Profiling and crash dumps
+*.hprof
+
+# Test harness artifacts (emulator images, logs, downloads)
+test-artifacts/
+
+# Operating system files
+.DS_Store

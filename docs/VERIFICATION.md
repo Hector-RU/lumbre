@@ -89,6 +89,35 @@ When it finishes, the emulator is shut down and the image, downloads and tempora
 to free space. APKs, reports, screenshots and scripts are kept; repeating the run requires
 a device or preparing a test image again.
 
+## 25 September 2026 — pagination, line snapping and animation
+
+Changes verified in this session:
+
+- Library titles are clipped to a single line with an ellipsis instead of wrapping.
+- Pages-mode turns advance by exactly one viewport, snap the landing offset to the
+  top of a rendered text line and animate over 240 ms with a `PathInterpolator`, so
+  the new page never starts with a half-cut line. `lineTopScript` converts the
+  View's physical-pixel offset to CSS pixels with `devicePixelRatio` and converts
+  the measured line top back before scrolling.
+- The pages-mode instrumented test polls for the asynchronous turn to finish and
+  asserts that no text line is cut by the top edge of the viewport.
+
+| Check | Result |
+| --- | --- |
+| JVM tests | 21 passed, 0 failed |
+| Android tests, Pixel 8 / Android 17 / API 37 / network adb | 6 passed, 0 failed |
+| Lint debug | 0 errors |
+| Debug APK | Built and installed on the device |
+
+Environment notes:
+
+- `androidx.test.ext:junit` 1.1.5 → 1.3.0 and `androidx.test.espresso:espresso-core`
+  3.5.1 → 3.7.0. Espresso 3.5.1 reflects on `android.hardware.input.InputManager.getInstance`,
+  which Android 17 removed, so `Espresso.onIdle` failed instantly in every Compose UI test.
+- The connected run needs the device awake and unlocked: while the keyguard is up the
+  WebView never finishes loading and the reader-ready wait times out. The screen
+  timeout was restored to 300000 ms after the run.
+
 ## Verification scope
 
 Automated validation does not replace testing against a wide EPUB collection, TalkBack,

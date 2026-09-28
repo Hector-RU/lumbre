@@ -65,7 +65,7 @@ val sortChoices = listOf("recent" to R.string.sort_recent, "title" to R.string.s
 fun ReaderSettings(p: ReaderPreferences, change: ((ReaderPreferences) -> ReaderPreferences) -> Unit, compact: Boolean = false) {
     SliderPreference(stringResource(R.string.font_size, p.fontSize.toInt()), p.fontSize, 12f..36f) { value -> change { it.copy(fontSize = value) } }
     ChoicePreference(stringResource(R.string.font), p.font, listOf("serif" to R.string.font_serif, "sans-serif" to R.string.font_sans, "monospace" to R.string.font_mono, "publisher" to R.string.font_publisher)) { value -> change { it.copy(font = value) } }
-    ChoicePreference(stringResource(R.string.reading_mode), p.readingMode, listOf("scroll" to R.string.scroll_mode, "pages" to R.string.page_mode)) { value -> change { it.copy(readingMode = value) } }
+    ChoicePreference(stringResource(R.string.reading_mode), p.readingMode, listOf("scroll" to R.string.scroll_mode, "pages" to R.string.page_mode, "paragraphs" to R.string.paragraph_mode)) { value -> change { it.copy(readingMode = value) } }
     TogglePreference(stringResource(R.string.volume_navigation), p.volumeNavigation, stringResource(R.string.volume_navigation_description)) { value -> change { it.copy(volumeNavigation = value) } }
     if (!compact) {
         SliderPreference(stringResource(R.string.line_height, p.lineHeight), p.lineHeight, 1.2f..2.2f) { value -> change { it.copy(lineHeight = value) } }

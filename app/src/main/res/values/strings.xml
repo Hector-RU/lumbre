@@ -85,9 +85,11 @@
     <string name="scroll_mode">Desplazamiento vertical</string>
     <string name="reading_mode">Modo de lectura</string>
     <string name="page_mode">Páginas horizontales</string>
+    <string name="paragraph_mode">Por párrafos</string>
     <string name="volume_navigation">Pasar página con volumen</string>
     <string name="volume_navigation_description">Volumen arriba retrocede; volumen abajo avanza</string>
     <string name="continue_chapter">Ir al capítulo siguiente</string>
+    <string name="return_chapter">Volver al capítulo anterior</string>
     <string name="scroll_description">Lectura continua dentro de cada capítulo</string>
     <string name="all_settings">Todas las configuraciones</string>
     <string name="data">Datos</string>

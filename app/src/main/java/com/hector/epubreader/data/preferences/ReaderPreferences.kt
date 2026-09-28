@@ -43,7 +43,7 @@ data class ReaderPreferences(
         paragraphSpacing = paragraphSpacing.takeIf { it.isFinite() }?.coerceIn(0f, 2f) ?: 0.8f,
         horizontalMargin = horizontalMargin.coerceIn(8, 64), verticalMargin = verticalMargin.coerceIn(8, 64),
         sort = sort.takeIf { it in setOf("recent", "title", "author", "added", "progress") } ?: "recent",
-        readingMode = readingMode.takeIf { it in setOf("scroll", "pages") } ?: "scroll"
+        readingMode = readingMode.takeIf { it in setOf("scroll", "pages", "paragraphs") } ?: "scroll"
     )
 }
 

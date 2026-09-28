@@ -25,60 +25,27 @@ import com.hector.epubreader.data.preferences.ReaderPreferences
 import com.hector.epubreader.epub.renderer.BookWebViewClient
 import com.hector.epubreader.epub.renderer.EpubContent
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 internal fun nextPageOffset(origin: Int, maximum: Int, viewport: Int, direction: Int): Int =
     (origin + direction * viewport).coerceIn(0, maximum)
 
-// Resolves a document offset to the top of the text line (or non-text block) that contains it,
-// so page turns never leave a half-visible line at the top of the viewport. The line rectangles
-// are measured once per layout and cached on the document. View offsets are physical pixels while
-// the DOM is measured in CSS pixels, so the target is converted with devicePixelRatio on entry
-// and the result is converted back on exit.
-internal fun lineTopScript(target: Int, nearest: Boolean): String = """
+data class ReaderSeekRequest(val generation: Int, val serial: Int, val fraction: Float)
+
+private val paginationMetricsScript = """
 (function() {
-  try {
-    var dpr = window.devicePixelRatio || 1;
-    var y = $target / dpr;
-    var key = document.documentElement.scrollHeight + ':' + window.innerWidth + ':' + window.innerHeight + ':' + (document.fonts ? document.fonts.status : '');
-    if (window.__pgKey !== key) {
-      var sy = window.scrollY, T = [], B = [], i, n;
-      var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-      while ((n = walker.nextNode())) {
-        if (!n.nodeValue || !n.nodeValue.trim()) continue;
-        var range = document.createRange();
-        range.selectNodeContents(n);
-        var rects = range.getClientRects();
-        for (i = 0; i < rects.length; i++) {
-          if (rects[i].height <= 0) continue;
-          T.push(Math.round(rects[i].top + sy));
-          B.push(Math.round(rects[i].bottom + sy));
-        }
-      }
-      var blocks = document.querySelectorAll('img, svg, video');
-      for (i = 0; i < blocks.length; i++) {
-        var box = blocks[i].getBoundingClientRect();
-        if (box.height <= 0) continue;
-        T.push(Math.round(box.top + sy));
-        B.push(Math.round(box.bottom + sy));
-      }
-      window.__pgTops = T; window.__pgBottoms = B; window.__pgKey = key;
-    }
-    var tops = window.__pgTops, bottoms = window.__pgBottoms;
-    if (!tops || !tops.length) return Math.round(y * dpr);
-    var inside = -1, above = -1, below = -1;
-    for (i = 0; i < tops.length; i++) {
-      if (tops[i] <= y && y < bottoms[i] && (inside < 0 || tops[i] < inside)) inside = tops[i];
-      if (tops[i] >= y && (above < 0 || tops[i] < above)) above = tops[i];
-      if (tops[i] > y && (below < 0 || tops[i] < below)) below = tops[i];
-    }
-    if ($nearest) {
-      if (inside < 0) return above >= 0 ? Math.round(above * dpr) : Math.round(y * dpr);
-      if (below < 0) return Math.round(inside * dpr);
-      return Math.round(((y - inside) <= (below - y) ? inside : below) * dpr);
-    }
-    if (inside >= 0) return Math.round(inside * dpr);
-    return above >= 0 ? Math.round(above * dpr) : Math.round(y * dpr);
-  } catch (e) { return $target; }
+  var dpr = window.devicePixelRatio || 1;
+  var slides = document.querySelectorAll('body > .reader-paragraph');
+  if (slides.length) {
+    var stride = slides.length > 1
+      ? slides[1].getBoundingClientRect().left - slides[0].getBoundingClientRect().left
+      : slides[0].getBoundingClientRect().width;
+    return slides.length + '|' + (stride * dpr);
+  }
+  var flow = document.getElementById('reader-flow');
+  if (!flow) return '0|0';
+  var width = flow.getBoundingClientRect().width;
+  return Math.max(1, Math.ceil(flow.scrollWidth / width)) + '|' + (width * dpr);
 })()
 """.trimIndent()
 
@@ -86,10 +53,18 @@ private class ReadingWebView(context: Context) : WebView(context) {
     var toggle: () -> Unit = {}
     var reportPosition: (Float) -> Unit = {}
     var requestNextChapter: () -> Unit = {}
+    var requestPreviousChapter: () -> Unit = {}
     var reportChapterPull: (Float) -> Unit = {}
     var hasNextChapter = false
+    var hasPreviousChapter = false
     var pages = false
+    var paragraphs = false
     var lastTurnRequest = 0
+    var lastSeekSerial = 0
+    var requestedPosition: Float? = null
+    private var pageCount = 0
+    private var pageStride = 0f
+    private var pageIndex = 0
     var restoring = true
     var renderKey: Any? = null
     private var downX = 0f
@@ -99,17 +74,17 @@ private class ReadingWebView(context: Context) : WebView(context) {
     private val pullThreshold = 96 * resources.displayMetrics.density
     private var nativeCancelled = false
     private var pullStart: Float? = null
+    private var pullDirection = 0
     private var pullProgress = 0f
     private var animator: ValueAnimator? = null
-    private var snapToken = 0
-    private var disposed = false
+    private var resizeToken = 0
+    private var lastKnownFraction = 0f
     private fun cancelAnimation() {
         animator?.cancel()
         animator = null
     }
     private fun cancelTurn() {
         cancelAnimation()
-        snapToken++
     }
     private fun cancelNativeGesture(event: MotionEvent) {
         if (nativeCancelled) return
@@ -121,7 +96,7 @@ private class ReadingWebView(context: Context) : WebView(context) {
         nativeCancelled = true
         cancelLongPress()
     }
-    override fun performLongClick(): Boolean = if (pages) false else super.performLongClick()
+    override fun performLongClick(): Boolean = if (pages || paragraphs) false else super.performLongClick()
     private val detector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
         override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
             if (e.x in width * 0.25f..width * 0.75f && e.y in height * 0.2f..height * 0.8f && hitTestResult.type == HitTestResult.UNKNOWN_TYPE) {
@@ -139,13 +114,16 @@ private class ReadingWebView(context: Context) : WebView(context) {
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (event.action == MotionEvent.ACTION_DOWN) {
-            cancelAnimation()
+            cancelTurn()
+            resizeToken++
+            if (horizontalMode() && pageStride > 0f) pageIndex = (scrollX / pageStride).roundToInt().coerceIn(0, (pageCount - 1).coerceAtLeast(0))
             restoring = false
             downX = event.x
             downY = event.y
-            downScroll = scrollY
+            downScroll = offset()
             nativeCancelled = false
-            pullStart = if (hasNextChapter && atEnd()) { if (pages) event.x else event.y } else null
+            pullStart = null
+            pullDirection = 0
             pullProgress = 0f
             reportChapterPull(0f)
         }
@@ -153,14 +131,27 @@ private class ReadingWebView(context: Context) : WebView(context) {
         val dx = event.x - downX
         val dy = event.y - downY
         if (event.action == MotionEvent.ACTION_MOVE) {
-            val alongAxis = if (pages) abs(dx) > abs(dy) else abs(dy) > abs(dx)
-            if (!pages && hasNextChapter && atEnd() && pullStart == null) pullStart = event.y
-            if (hasNextChapter && alongAxis && pullStart != null) {
-                val distance = pullStart!! - if (pages) event.x else event.y
-                pullProgress = (distance / pullThreshold).coerceIn(0f, 1f)
-                reportChapterPull(pullProgress)
-            } else { pullProgress = 0f; reportChapterPull(0f) }
-            if ((pages && (abs(dx) > touchSlop || abs(dy) > touchSlop)) || pullProgress > 0f) {
+            val horizontal = pages || paragraphs
+            val alongAxis = if (horizontal) abs(dx) > abs(dy) else abs(dy) > abs(dx)
+            val forward = if (horizontal) -dx else -dy
+            if (alongAxis && pullStart == null) {
+                val direction = when {
+                    forward > touchSlop && hasNextChapter && atEnd() -> 1
+                    forward < -touchSlop && hasPreviousChapter && atStart() -> -1
+                    else -> 0
+                }
+                if (direction != 0) {
+                    pullDirection = direction
+                    pullStart = if (horizontal) { if (downScroll == offset()) downX else event.x } else { if (downScroll == offset()) downY else event.y }
+                }
+            }
+            pullProgress = if (alongAxis && pullStart != null) {
+                val distance = (pullStart!! - if (horizontal) event.x else event.y) * pullDirection
+                (distance / pullThreshold).coerceIn(0f, 1f)
+            } else 0f
+            reportChapterPull(pullProgress * pullDirection)
+            if ((pages && (abs(dx) > touchSlop || abs(dy) > touchSlop)) ||
+                (paragraphs && alongAxis && abs(dx) > touchSlop) || pullProgress > 0f) {
                 cancelNativeGesture(event)
                 return true
             }
@@ -171,91 +162,136 @@ private class ReadingWebView(context: Context) : WebView(context) {
             reportChapterPull(0f)
             if (pullStart != null && (nativeCancelled || commitChapter)) {
                 cancelNativeGesture(event)
-                if (commitChapter) requestNextChapter()
-                // A reverse swipe still turns back a page.
-                if (pages && dx > width * 0.15f && abs(dx) > abs(dy)) step(-1, downScroll)
+                if (commitChapter) {
+                    if (pullDirection > 0) requestNextChapter() else requestPreviousChapter()
+                } else if (pages || paragraphs) scrollToOffset(downScroll)
                 return true
             }
-            if (pages && abs(dx) > width * 0.15f && abs(dx) > abs(dy)) {
+            if ((pages || paragraphs) && abs(dx) > width * 0.15f && abs(dx) > abs(dy)) {
                 cancelNativeGesture(event)
                 step(if (dx < 0) 1 else -1, downScroll)
                 return true
             }
-            if (nativeCancelled) { if (pages) scrollTo(0, downScroll); return true }
+            if (nativeCancelled) { scrollToOffset(downScroll); return true }
         }
         if (event.action == MotionEvent.ACTION_CANCEL) {
             reportChapterPull(0f)
             pullProgress = 0f
-            if (pages) scrollTo(0, downScroll)
+            if (pages || paragraphs) scrollToOffset(downScroll)
         }
         return super.onTouchEvent(event)
     }
-    private fun maximum() = (computeVerticalScrollRange() - height).coerceAtLeast(0)
-    private fun atEnd() = maximum() - scrollY <= 4
-    fun step(direction: Int, origin: Int = scrollY) {
+    private fun horizontalMode() = pages || paragraphs
+    private fun offset() = if (horizontalMode()) scrollX else scrollY
+    private fun maximum() = if (horizontalMode()) {
+        if (pageCount > 0) ((pageCount - 1) * pageStride).roundToInt() else (computeHorizontalScrollRange() - width).coerceAtLeast(0)
+    } else (computeVerticalScrollRange() - height).coerceAtLeast(0)
+    private fun atEnd() = if (horizontalMode()) {
+        if (pageCount > 0) pageIndex >= pageCount - 1 else !canScrollHorizontally(1)
+    } else !canScrollVertically(1)
+    private fun atStart() = if (horizontalMode()) {
+        if (pageCount > 0) pageIndex <= 0 else !canScrollHorizontally(-1)
+    } else !canScrollVertically(-1)
+    private fun scrollToOffset(value: Int) { if (horizontalMode()) scrollTo(value, 0) else scrollTo(0, value) }
+    fun step(direction: Int, origin: Int = offset()) {
         if (restoring) return
         if (direction > 0 && maximum() - origin <= 4) { requestNextChapter(); return }
-        if (pages) {
-            turn(nextPageOffset(origin, maximum(), height, direction), direction, origin)
-        } else scrollTo(0, (origin + direction * (height * 0.85f).toInt()).coerceIn(0, maximum()))
+        if (direction < 0 && origin <= 4) { requestPreviousChapter(); return }
+        if (horizontalMode()) {
+            if (pageCount > 0) {
+                pageIndex = (pageIndex + direction).coerceIn(0, pageCount - 1)
+                animatePage((pageIndex * pageStride).roundToInt())
+            } else animatePage(nextPageOffset(origin, maximum(), width, direction))
+        } else scrollToOffset((origin + direction * (height * 0.85f).toInt()).coerceIn(0, maximum()))
         reportPosition(fraction())
-    }
-    private fun turn(target: Int, direction: Int, origin: Int) {
-        val edge = (direction > 0 && target >= maximum()) || (direction < 0 && target <= 0)
-        if (edge) { animatePage(target); return }
-        snapLine(target, nearest = false) { measured ->
-            var y = measured.coerceIn(0, maximum())
-            if (direction > 0 && y <= origin) y = target
-            if (direction < 0 && y >= origin) y = target
-            animatePage(y.coerceIn(0, maximum()))
-        }
-    }
-    private fun snapLine(target: Int, nearest: Boolean, apply: (Int) -> Unit) {
-        if (disposed) return
-        val token = ++snapToken
-        evaluateJavascript(lineTopScript(target, nearest)) { result ->
-            if (disposed || token != snapToken) return@evaluateJavascript
-            apply(result?.removeSurrounding("\"")?.toIntOrNull() ?: target)
-        }
     }
     private fun animatePage(target: Int) {
         cancelAnimation()
-        val start = scrollY
+        val start = offset()
         if (start == target) return
         animator = ValueAnimator.ofInt(start, target).apply {
             duration = 240
             interpolator = PathInterpolator(0.4f, 0f, 0.2f, 1f)
-            addUpdateListener { animation -> scrollTo(0, animation.animatedValue as Int) }
+            addUpdateListener { animation -> scrollToOffset(animation.animatedValue as Int) }
             start()
         }
     }
     fun fraction(): Float {
         val maximum = maximum()
-        return if (maximum == 0) 0f else (scrollY.toFloat() / maximum).coerceIn(0f, 1f)
+        return if (maximum == 0) 0f else (offset().toFloat() / maximum).coerceIn(0f, 1f)
     }
     fun restore(fraction: Float) {
         cancelAnimation()
+        lastKnownFraction = fraction.coerceIn(0f, 1f)
         val offset = (maximum() * fraction).toInt().coerceIn(0, maximum())
-        if (!pages) { scrollTo(0, offset); return }
-        scrollTo(0, offset)
-        if (offset in 1 until maximum()) snapLine(offset, nearest = true) { measured -> scrollTo(0, measured.coerceIn(0, maximum())) }
+        if (horizontalMode()) {
+            if (pageCount > 0) {
+                pageIndex = (fraction.coerceIn(0f, 1f) * (pageCount - 1)).roundToInt()
+                scrollToOffset((pageIndex * pageStride).roundToInt())
+            } else {
+                val page = if (width > 0) ((offset + width / 2) / width) * width else offset
+                scrollToOffset(page.coerceIn(0, maximum()))
+            }
+        } else scrollToOffset(offset)
+    }
+    fun measurePagination(done: () -> Unit) {
+        if (!horizontalMode()) { done(); return }
+        val viewportHeight = height / resources.displayMetrics.density
+        evaluateJavascript("document.documentElement.style.setProperty('--reader-viewport-height', '${viewportHeight}px')") {
+            evaluateJavascript(paginationMetricsScript) { result ->
+                val metrics = result?.removeSurrounding("\"")?.split('|')
+                val count = metrics?.getOrNull(0)?.toIntOrNull()
+                val stride = metrics?.getOrNull(1)?.toFloatOrNull()
+                if (count != null && count > 0 && stride != null && stride.isFinite() && stride > 0f) {
+                    pageCount = count
+                    pageStride = stride
+                }
+                done()
+            }
+        }
+    }
+    fun seek(fraction: Float) {
+        resizeToken++
+        restore(fraction)
     }
     fun beginRender() {
         cancelTurn()
+        resizeToken++
+        pageCount = 0
+        pageStride = 0f
+        pageIndex = 0
+        requestedPosition = null
         restoring = true
     }
     fun dispose() {
-        disposed = true
         cancelTurn()
     }
     override fun onScrollChanged(l: Int, t: Int, oldl: Int, oldt: Int) {
         super.onScrollChanged(l, t, oldl, oldt)
-        if (!restoring) reportPosition(fraction())
+        if (!restoring) {
+            lastKnownFraction = fraction()
+            reportPosition(lastKnownFraction)
+        }
+    }
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        val position = lastKnownFraction
+        val key = renderKey
+        super.onSizeChanged(w, h, oldw, oldh)
+        if (oldw > 0 && oldh > 0 && w > 0 && h > 0 && (w != oldw || h != oldh) && !restoring) {
+            val token = ++resizeToken
+            listOf(80L, 300L).forEach { delay ->
+                postDelayed({
+                    if (token == resizeToken && key == renderKey && !restoring) {
+                        measurePagination { if (token == resizeToken && key == renderKey) restore(position) }
+                    }
+                }, delay)
+            }
+        }
     }
 }
 
 @Composable
-fun ReaderWebView(book: OpenBook, location: ReaderLocation, preferences: ReaderPreferences, currentPosition: () -> Float, toggle: () -> Unit, onPosition: (Float) -> Unit, onLink: (Int, String?) -> Unit, onError: () -> Unit, flush: () -> Unit, consumeTarget: (Int) -> Boolean, modifier: Modifier = Modifier, onNextChapter: () -> Unit = {}, turnRequest: Int = 0, onChapterPull: (Float) -> Unit = {}) {
+fun ReaderWebView(book: OpenBook, location: ReaderLocation, preferences: ReaderPreferences, currentPosition: () -> Float, toggle: () -> Unit, onPosition: (Float) -> Unit, onLink: (Int, String?) -> Unit, onError: () -> Unit, flush: () -> Unit, consumeTarget: (Int) -> Boolean, modifier: Modifier = Modifier, onNextChapter: () -> Unit = {}, onPreviousChapter: () -> Unit = {}, turnRequest: Int = 0, seekRequest: ReaderSeekRequest? = null, onChapterPull: (Float) -> Unit = {}) {
     val fontScale = LocalDensity.current.fontScale
     val scheme = MaterialTheme.colorScheme
     fun hex(color: androidx.compose.ui.graphics.Color) = "#%06X".format(color.toArgb() and 0xFFFFFF)
@@ -266,6 +302,7 @@ fun ReaderWebView(book: OpenBook, location: ReaderLocation, preferences: ReaderP
     val latestError by rememberUpdatedState(onError)
     val latestFlush by rememberUpdatedState(flush)
     val latestNextChapter by rememberUpdatedState(onNextChapter)
+    val latestPreviousChapter by rememberUpdatedState(onPreviousChapter)
     val latestChapterPull by rememberUpdatedState(onChapterPull)
     val renderPreferences = preferences.copy(appTheme = "system", dynamicColors = false, interfaceColor = "green", sort = "recent", ascending = false, listView = false)
     AndroidView(modifier = modifier, factory = { context ->
@@ -285,15 +322,17 @@ fun ReaderWebView(book: OpenBook, location: ReaderLocation, preferences: ReaderP
             this.toggle = { latestToggle() }
             reportPosition = { latestPosition(it) }
             requestNextChapter = { latestNextChapter() }
+            requestPreviousChapter = { latestPreviousChapter() }
             reportChapterPull = { latestChapterPull(it) }
             lastTurnRequest = turnRequest
         }
     }, update = { view ->
         view.pages = preferences.readingMode == "pages"
-        // Line measurement for page snapping only runs in pages mode; scroll mode keeps scripts off.
-        if (view.settings.javaScriptEnabled != view.pages) view.settings.javaScriptEnabled = view.pages
+        view.paragraphs = preferences.readingMode == "paragraphs"
+        if (view.settings.javaScriptEnabled != (view.pages || view.paragraphs)) view.settings.javaScriptEnabled = view.pages || view.paragraphs
         view.hasNextChapter = location.chapter < book.publication.chapters.lastIndex
-        view.isLongClickable = !view.pages
+        view.hasPreviousChapter = location.chapter > 0
+        view.isLongClickable = !view.pages && !view.paragraphs
         view.isVerticalScrollBarEnabled = false
         view.isHorizontalScrollBarEnabled = false
         val key = listOf(location, renderPreferences, fontScale, colors)
@@ -311,14 +350,17 @@ fun ReaderWebView(book: OpenBook, location: ReaderLocation, preferences: ReaderP
                     listOf(100L, 350L, 800L).forEach { delay ->
                         view.postDelayed({
                             if (view.renderKey == key && view.restoring) {
-                                if (fragment == null && query == null) view.restore(position)
-                                if (delay == 800L) {
-                                    view.restoring = false
-                                    if (query != null) {
-                                        view.findAllAsync(query)
-                                        view.postDelayed({ if (view.renderKey == key) view.clearMatches() }, 30_000)
+                                view.measurePagination {
+                                    if (view.renderKey != key || !view.restoring) return@measurePagination
+                                    if (fragment == null && query == null) view.restore(view.requestedPosition ?: position)
+                                    if (delay == 800L) {
+                                        view.restoring = false
+                                        if (query != null) {
+                                            view.findAllAsync(query)
+                                            view.postDelayed({ if (view.renderKey == key) view.clearMatches() }, 30_000)
+                                        }
+                                        latestPosition(view.fraction())
                                     }
-                                    latestPosition(view.fraction())
                                 }
                             }
                         }, delay)
@@ -331,6 +373,11 @@ fun ReaderWebView(book: OpenBook, location: ReaderLocation, preferences: ReaderP
             val direction = if (turnRequest > view.lastTurnRequest) 1 else -1
             view.lastTurnRequest = turnRequest
             view.step(direction)
+        }
+        if (seekRequest != null && seekRequest.generation == location.generation && seekRequest.serial != view.lastSeekSerial) {
+            view.lastSeekSerial = seekRequest.serial
+            view.requestedPosition = seekRequest.fraction
+            if (!view.restoring) view.seek(seekRequest.fraction)
         }
     }, onRelease = { view ->
         if (!view.restoring) latestPosition(view.fraction())

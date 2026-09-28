@@ -22,7 +22,9 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -51,8 +53,17 @@ fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((
     var sheet by rememberSaveable { mutableStateOf<String?>(null) }
     var menu by remember { mutableStateOf(false) }
     var chapterPull by remember { mutableFloatStateOf(0f) }
-    val arrowProgress by animateFloatAsState(chapterPull, spring(stiffness = 1200f), label = "chapterPull")
+    val arrowProgress by animateFloatAsState(kotlin.math.abs(chapterPull), spring(stiffness = 1200f), label = "chapterPull")
     var turnRequest by remember { mutableIntStateOf(0) }
+    var seekSerial by remember { mutableIntStateOf(0) }
+    var seekRequest by remember { mutableStateOf<ReaderSeekRequest?>(null) }
+    var topBarHeight by remember { mutableIntStateOf(0) }
+    var bottomBarHeight by remember { mutableIntStateOf(0) }
+    val density = LocalDensity.current
+    val topInset = WindowInsets.safeDrawing.getTop(density)
+    val bottomInset = WindowInsets.safeDrawing.getBottom(density)
+    val readerTop = with(density) { (if (controls) (topBarHeight - topInset).coerceAtLeast(0) else 0).toDp() }
+    val readerBottom = with(density) { (if (controls) (bottomBarHeight - bottomInset).coerceAtLeast(0) else 0).toDp() }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val activity = LocalActivity.current
     DisposableEffect(activity, preferences.volumeNavigation) {
@@ -79,8 +90,11 @@ fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((
         if (book != null && !state.error) {
             ReaderWebView(book, state.location, preferences, { vm.position.value }, { controls = !controls }, vm::positionChanged,
                 onLink = { chapter, fragment -> vm.navigate(chapter, fragment = fragment) }, onError = vm::renderError, flush = vm::flush, consumeTarget = vm::consumeNavigationTarget,
-                modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
+                modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(top = readerTop, bottom = readerBottom),
                 onNextChapter = { if (state.location.chapter < book.publication.chapters.lastIndex) vm.navigate(state.location.chapter + 1) }, turnRequest = turnRequest,
+                onPreviousChapter = { if (state.location.chapter > 0) vm.navigate(state.location.chapter - 1, 1f) },
+                seekRequest = seekRequest,
                 onChapterPull = { chapterPull = it })
         }
         val loadingLabel = stringResource(R.string.loading)
@@ -93,21 +107,26 @@ fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((
             }
         }
         if (arrowProgress > 0.01f && book != null) {
-            val horizontal = preferences.readingMode == "pages"
+            val horizontal = preferences.readingMode == "pages" || preferences.readingMode == "paragraphs"
+            val previous = chapterPull < 0f
             Surface(Modifier
-                .align(if (horizontal) Alignment.CenterEnd else Alignment.BottomCenter)
+                .align(if (horizontal) { if (previous) Alignment.CenterStart else Alignment.CenterEnd } else { if (previous) Alignment.TopCenter else Alignment.BottomCenter })
                 .windowInsetsPadding(WindowInsets.safeDrawing)
-                .padding(end = if (horizontal) 16.dp else 0.dp, bottom = if (horizontal) 0.dp else if (controls) 164.dp else 28.dp)
+                .padding(start = if (horizontal && previous) 16.dp else 0.dp, end = if (horizontal && !previous) 16.dp else 0.dp,
+                    top = if (!horizontal && previous) { if (controls) 72.dp else 28.dp } else 0.dp,
+                    bottom = if (!horizontal && !previous) { if (controls) 164.dp else 28.dp } else 0.dp)
                 .graphicsLayer {
                     alpha = arrowProgress
                     val travel = 72.dp.toPx() * (1f - arrowProgress)
-                    translationX = if (horizontal) travel else 0f
-                    translationY = if (horizontal) 0f else travel
+                    translationX = if (horizontal) travel * if (previous) -1 else 1 else 0f
+                    translationY = if (horizontal) 0f else travel * if (previous) -1 else 1
                     scaleX = 0.7f + arrowProgress * 0.3f
                     scaleY = scaleX
                 }, shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
-                Icon(if (horizontal) Icons.Outlined.ChevronRight else Icons.Outlined.KeyboardArrowDown,
-                    stringResource(R.string.continue_chapter), Modifier.padding(12.dp).size(28.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                Icon(if (horizontal) { if (previous) Icons.Outlined.ChevronLeft else Icons.Outlined.ChevronRight }
+                    else { if (previous) Icons.Outlined.KeyboardArrowUp else Icons.Outlined.KeyboardArrowDown },
+                    stringResource(if (previous) R.string.return_chapter else R.string.continue_chapter),
+                    Modifier.padding(12.dp).size(28.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
             }
         }
         if (controls && book != null) {
@@ -119,8 +138,8 @@ fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((
                     DropdownMenuItem(text = { Text(stringResource(R.string.bookmarks)) }, onClick = { menu = false; sheet = "bookmarks" })
                     DropdownMenuItem(text = { Text(stringResource(R.string.settings)) }, onClick = { menu = false; vm.flush(); settings() })
                 }
-            }, modifier = Modifier.align(Alignment.TopCenter))
-            Surface(modifier = Modifier.align(Alignment.BottomCenter), tonalElevation = 3.dp) {
+            }, modifier = Modifier.align(Alignment.TopCenter).onSizeChanged { topBarHeight = it.height })
+            Surface(modifier = Modifier.align(Alignment.BottomCenter).onSizeChanged { bottomBarHeight = it.height }, tonalElevation = 3.dp) {
                 Column(Modifier.navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = { vm.navigate(state.location.chapter - 1) }, enabled = state.location.chapter > 0) { Icon(Icons.AutoMirrored.Outlined.NavigateBefore, stringResource(R.string.previous_chapter)) }
@@ -130,9 +149,19 @@ fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((
                         }
                         IconButton(onClick = { vm.navigate(state.location.chapter + 1) }, enabled = state.location.chapter < book.publication.chapters.lastIndex) { Icon(Icons.AutoMirrored.Outlined.NavigateNext, stringResource(R.string.next_chapter)) }
                     }
-                    var slider by remember(state.location, position) { mutableFloatStateOf(position) }
+                    var slider by remember(state.location) { mutableFloatStateOf(position) }
+                    var dragging by remember(state.location) { mutableStateOf(false) }
+                    LaunchedEffect(position, dragging) { if (!dragging) slider = position }
                     val progressLabel = stringResource(R.string.sort_progress)
-                    Slider(value = slider, onValueChange = { slider = it }, onValueChangeFinished = { vm.navigate(state.location.chapter, slider) }, modifier = Modifier.semantics { contentDescription = progressLabel })
+                    Slider(value = slider, onValueChange = {
+                        dragging = true
+                        slider = it
+                        seekRequest = ReaderSeekRequest(state.location.generation, ++seekSerial, it)
+                    }, onValueChangeFinished = {
+                        dragging = false
+                        vm.positionChanged(slider)
+                        vm.flush()
+                    }, modifier = Modifier.semantics { contentDescription = progressLabel })
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                         IconButton(onClick = { sheet = "contents" }) { Icon(Icons.AutoMirrored.Outlined.FormatListBulleted, stringResource(R.string.contents)) }
                         IconButton(onClick = { sheet = "appearance" }) { Icon(Icons.Outlined.TextFields, stringResource(R.string.appearance)) }

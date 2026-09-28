@@ -84,9 +84,11 @@
     <string name="scroll_mode">Vertical scrolling</string>
     <string name="reading_mode">Reading mode</string>
     <string name="page_mode">Horizontal pages</string>
+    <string name="paragraph_mode">By paragraph</string>
     <string name="volume_navigation">Turn pages with volume buttons</string>
     <string name="volume_navigation_description">Volume up goes back; volume down goes forward</string>
     <string name="continue_chapter">Go to next chapter</string>
+    <string name="return_chapter">Go to previous chapter</string>
     <string name="scroll_description">Continuous reading within each chapter</string>
     <string name="all_settings">All settings</string>
     <string name="data">Data</string>

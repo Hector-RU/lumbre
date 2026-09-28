@@ -59,6 +59,7 @@ class ReaderCoreTest {
         assertEquals("system", p.appTheme)
         assertEquals("green", p.interfaceColor)
         assertEquals("scroll", p.readingMode)
+        assertEquals("paragraphs", ReaderPreferences(readingMode = "paragraphs").validated().readingMode)
     }
 
     @Test fun renderedHtmlUsesProvidedAppColors() {
@@ -68,6 +69,25 @@ class ReaderCoreTest {
         assertTrue(css.contains("background:#123456"))
         assertTrue(css.contains("color:#F0F0F0"))
         assertTrue(css.contains("color-scheme: dark"))
+        assertTrue(css.contains("column-width:calc(100vw"))
+        assertTrue(css.contains("column-fill:auto"))
+        assertEquals("Texto", Jsoup.parse(html).selectFirst("body > #reader-flow > p")?.text())
+    }
+    @Test fun paragraphModeShowsOneContentBlockPerSlide() {
+        val html = "<html><body><section class='story'><h1>Title</h1><p id='one'>First <em>paragraph</em>.</p><p id='two'>Second paragraph.</p></section></body></html>"
+        val output = Jsoup.parse(EpubContent.render(html.toByteArray(), ReaderPreferences(readingMode = "paragraphs")))
+        val slides = output.select("body > .reader-paragraph")
+        assertEquals(3, slides.size)
+        assertEquals("Title", slides[0].text())
+        assertEquals("First paragraph.", slides[1].text())
+        assertEquals("Second paragraph.", slides[2].text())
+        assertEquals("one", slides[1].selectFirst("p")?.id())
+        assertTrue(output.selectFirst("style")!!.html().contains("display:flex"))
+    }
+    @Test fun paragraphModeKeepsTextOutsideParagraphTags() {
+        val html = "<html><body><div>Intro <em>important</em><p>Middle</p>Outro</div></body></html>"
+        val output = Jsoup.parse(EpubContent.render(html.toByteArray(), ReaderPreferences(readingMode = "paragraphs")))
+        assertEquals(listOf("Intro important", "Middle", "Outro"), output.select("body > .reader-paragraph").map { it.text() })
     }
     @Test fun horizontalPageGesturesAdvanceAndReturnAtChapterEnd() {
         assertEquals(1000, nextPageOffset(0, 2500, 1000, 1))

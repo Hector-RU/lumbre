@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.hector.epubreader.ReaderApplication
 import com.hector.epubreader.data.OpenBook
+import com.hector.epubreader.data.BookRepository
 import com.hector.epubreader.data.SearchHit
 import com.hector.epubreader.data.local.BookmarkEntity
 import kotlinx.coroutines.*
@@ -15,8 +16,7 @@ data class ReaderLocation(val chapter: Int = 0, val position: Float = 0f, val fr
 data class ReaderUiState(val book: OpenBook? = null, val loading: Boolean = true, val error: Boolean = false, val location: ReaderLocation = ReaderLocation())
 data class ReaderSearchState(val query: String = "", val searching: Boolean = false, val hits: List<SearchHit> = emptyList(), val error: Boolean = false)
 
-class ReaderViewModel(private val app: ReaderApplication, private val id: String) : ViewModel() {
-    private val repository = app.books
+class ReaderViewModel(private val app: ReaderApplication, private val id: String, private val repository: BookRepository = app.books) : ViewModel() {
     private val _state = MutableStateFlow(ReaderUiState())
     val state = _state.asStateFlow()
     private val _position = MutableStateFlow(0f)

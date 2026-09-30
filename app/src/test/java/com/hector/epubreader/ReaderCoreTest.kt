@@ -82,7 +82,10 @@ class ReaderCoreTest {
         assertEquals("First paragraph.", slides[1].text())
         assertEquals("Second paragraph.", slides[2].text())
         assertEquals("one", slides[1].selectFirst("p")?.id())
-        assertTrue(output.selectFirst("style")!!.html().contains("display:flex"))
+        val css = output.selectFirst("style")!!.html()
+        assertTrue(css.contains("column-fill:auto"))
+        assertTrue(css.contains("break-before:column"))
+        assertFalse(css.contains("overflow-y:auto"))
     }
     @Test fun paragraphModeKeepsTextOutsideParagraphTags() {
         val html = "<html><body><div>Intro <em>important</em><p>Middle</p>Outro</div></body></html>"

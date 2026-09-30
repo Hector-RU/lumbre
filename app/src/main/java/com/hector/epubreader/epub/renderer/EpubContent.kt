@@ -46,11 +46,12 @@ object EpubContent {
         """.trimIndent() else ""
         val paragraphCss = if (p.readingMode == "paragraphs") """
             html { overflow-x:auto !important; overflow-y:hidden !important; }
-            body { display:flex !important; width:max-content !important; min-width:100vw;
-                height:var(--reader-viewport-height, 100vh) !important; padding:0 !important; align-items:stretch; }
-            body > .reader-paragraph { flex:0 0 100vw; width:100vw; height:var(--reader-viewport-height, 100vh);
-                box-sizing:border-box; overflow-y:auto; overflow-x:hidden;
-                padding:${p.verticalMargin}px ${p.horizontalMargin}px; }
+            body { width:100vw !important; height:var(--reader-viewport-height, 100vh) !important;
+                box-sizing:border-box; padding:${p.verticalMargin}px ${p.horizontalMargin}px !important;
+                column-width:calc(100vw - ${p.horizontalMargin * 2}px) !important;
+                column-gap:${p.horizontalMargin * 2}px !important; column-fill:auto !important; }
+            body > .reader-paragraph { break-before:column; break-inside:auto; }
+            img, svg { max-height:calc(var(--reader-viewport-height, 100vh) - ${p.verticalMargin * 2}px) !important; }
         """.trimIndent() else ""
         val css = """
             :root { color-scheme: ${if (colors.dark) "dark" else "light"}; }

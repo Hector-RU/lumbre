@@ -2,8 +2,16 @@ package com.hector.epubreader.ui.reader
 
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
@@ -62,8 +70,16 @@ fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((
     val density = LocalDensity.current
     val topInset = WindowInsets.safeDrawing.getTop(density)
     val bottomInset = WindowInsets.safeDrawing.getBottom(density)
-    val readerTop = with(density) { (if (controls) (topBarHeight - topInset).coerceAtLeast(0) else 0).toDp() }
-    val readerBottom = with(density) { (if (controls) (bottomBarHeight - bottomInset).coerceAtLeast(0) else 0).toDp() }
+    val controlsDuration = if (controls) 240 else 180
+    val controlsEasing = CubicBezierEasing(0.32f, 0.72f, 0f, 1f)
+    val targetReaderTop = with(density) { (if (controls) topBarHeight.coerceAtLeast(topInset) else topInset).toDp() }
+    val targetReaderBottom = with(density) { (if (controls) bottomBarHeight.coerceAtLeast(bottomInset) else bottomInset).toDp() }
+    val readerTop by animateDpAsState(
+        targetReaderTop,
+        tween(controlsDuration, easing = controlsEasing), label = "readerTop")
+    val readerBottom by animateDpAsState(
+        targetReaderBottom,
+        tween(controlsDuration, easing = controlsEasing), label = "readerBottom")
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val activity = LocalActivity.current
     DisposableEffect(activity, preferences.volumeNavigation) {
@@ -76,25 +92,29 @@ fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((
         lifecycle.addObserver(observer)
         onDispose { lifecycle.removeObserver(observer); vm.flush() }
     }
-    DisposableEffect(controls, sheet, activity) {
-        if (activity == null) return@DisposableEffect onDispose { }
+    LaunchedEffect(controls, sheet, activity) {
+        if (activity == null) return@LaunchedEffect
         val controller = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
         controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         if (controls || sheet != null) controller.show(WindowInsetsCompat.Type.systemBars()) else controller.hide(WindowInsetsCompat.Type.systemBars())
-        onDispose { controller.show(WindowInsetsCompat.Type.systemBars()) }
     }
-    BackHandler { if (sheet != null) sheet = null else if (controls) controls = false else { vm.flush(); back() } }
+    DisposableEffect(activity) {
+        onDispose {
+            activity?.let { WindowCompat.getInsetsController(it.window, it.window.decorView).show(WindowInsetsCompat.Type.systemBars()) }
+        }
+    }
+    BackHandler { if (sheet != null) sheet = null else { vm.flush(); back() } }
     val book = state.book
     LaunchedEffect(state.location.chapter, preferences.readingMode) { chapterPull = 0f }
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
         if (book != null && !state.error) {
             ReaderWebView(book, state.location, preferences, { vm.position.value }, { controls = !controls }, vm::positionChanged,
                 onLink = { chapter, fragment -> vm.navigate(chapter, fragment = fragment) }, onError = vm::renderError, flush = vm::flush, consumeTarget = vm::consumeNavigationTarget,
-                modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)
-                    .padding(top = readerTop, bottom = readerBottom),
+                modifier = Modifier.fillMaxSize().padding(top = readerTop, bottom = readerBottom),
                 onNextChapter = { if (state.location.chapter < book.publication.chapters.lastIndex) vm.navigate(state.location.chapter + 1) }, turnRequest = turnRequest,
                 onPreviousChapter = { if (state.location.chapter > 0) vm.navigate(state.location.chapter - 1, 1f) },
                 seekRequest = seekRequest,
+                viewportAnimating = readerTop != targetReaderTop || readerBottom != targetReaderBottom,
                 onChapterPull = { chapterPull = it })
         }
         val loadingLabel = stringResource(R.string.loading)
@@ -129,49 +149,58 @@ fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((
                     Modifier.padding(12.dp).size(28.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
             }
         }
-        if (controls && book != null) {
-            TopAppBar(title = { Text(book.record.title, maxLines = 1, overflow = TextOverflow.Ellipsis) }, navigationIcon = {
-                IconButton(onClick = { vm.flush(); back() }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, stringResource(R.string.back)) }
-            }, actions = {
-                IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, stringResource(R.string.more_options)) }
-                DropdownMenu(menu, { menu = false }) {
-                    DropdownMenuItem(text = { Text(stringResource(R.string.bookmarks)) }, onClick = { menu = false; sheet = "bookmarks" })
-                    DropdownMenuItem(text = { Text(stringResource(R.string.settings)) }, onClick = { menu = false; vm.flush(); settings() })
-                }
-            }, modifier = Modifier.align(Alignment.TopCenter).onSizeChanged { topBarHeight = it.height })
-            Surface(modifier = Modifier.align(Alignment.BottomCenter).onSizeChanged { bottomBarHeight = it.height }, tonalElevation = 3.dp) {
-                Column(Modifier.navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { vm.navigate(state.location.chapter - 1) }, enabled = state.location.chapter > 0) { Icon(Icons.AutoMirrored.Outlined.NavigateBefore, stringResource(R.string.previous_chapter)) }
-                        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(book.publication.chapters[state.location.chapter].title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)
-                            Text(stringResource(R.string.chapter, state.location.chapter + 1, book.publication.chapters.size), style = MaterialTheme.typography.labelSmall)
-                        }
-                        IconButton(onClick = { vm.navigate(state.location.chapter + 1) }, enabled = state.location.chapter < book.publication.chapters.lastIndex) { Icon(Icons.AutoMirrored.Outlined.NavigateNext, stringResource(R.string.next_chapter)) }
+        if (book != null) {
+            AnimatedVisibility(controls, modifier = Modifier.align(Alignment.TopCenter),
+                enter = slideInVertically(tween(240, easing = controlsEasing)) { -it } + fadeIn(tween(180)),
+                exit = slideOutVertically(tween(180, easing = controlsEasing)) { -it } + fadeOut(tween(120))) {
+                TopAppBar(title = { Text(book.record.title, maxLines = 1, overflow = TextOverflow.Ellipsis) }, navigationIcon = {
+                    IconButton(onClick = { vm.flush(); back() }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, stringResource(R.string.back)) }
+                }, actions = {
+                    IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, stringResource(R.string.more_options)) }
+                    DropdownMenu(menu, { menu = false }) {
+                        DropdownMenuItem(text = { Text(stringResource(R.string.bookmarks)) }, onClick = { menu = false; sheet = "bookmarks" })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.settings)) }, onClick = { menu = false; vm.flush(); settings() })
                     }
-                    var slider by remember(state.location) { mutableFloatStateOf(position) }
-                    var dragging by remember(state.location) { mutableStateOf(false) }
-                    LaunchedEffect(position, dragging) { if (!dragging) slider = position }
-                    val progressLabel = stringResource(R.string.sort_progress)
-                    Slider(value = slider, onValueChange = {
-                        dragging = true
-                        slider = it
-                        seekRequest = ReaderSeekRequest(state.location.generation, ++seekSerial, it)
-                    }, onValueChangeFinished = {
-                        dragging = false
-                        vm.positionChanged(slider)
-                        vm.flush()
-                    }, modifier = Modifier.semantics { contentDescription = progressLabel })
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        IconButton(onClick = { sheet = "contents" }) { Icon(Icons.AutoMirrored.Outlined.FormatListBulleted, stringResource(R.string.contents)) }
-                        IconButton(onClick = { sheet = "appearance" }) { Icon(Icons.Outlined.TextFields, stringResource(R.string.appearance)) }
-                        IconButton(onClick = { sheet = "search" }) { Icon(Icons.Outlined.Search, stringResource(R.string.search_book)) }
-                        val marked = bookmarks.any { it.chapter == state.location.chapter && kotlin.math.abs(it.position - position) < 0.02f }
-                        IconButton(onClick = { vm.toggleBookmark() }) { Icon(if (marked) Icons.Outlined.BookmarkAdded else Icons.Outlined.BookmarkAdd, stringResource(if (marked) R.string.remove_bookmark else R.string.add_bookmark)) }
+                }, modifier = Modifier.onSizeChanged { topBarHeight = it.height })
+            }
+            AnimatedVisibility(controls, modifier = Modifier.align(Alignment.BottomCenter),
+                enter = slideInVertically(tween(240, easing = controlsEasing)) { it } + fadeIn(tween(180)),
+                exit = slideOutVertically(tween(180, easing = controlsEasing)) { it } + fadeOut(tween(120))) {
+                Surface(modifier = Modifier.onSizeChanged { bottomBarHeight = it.height }, tonalElevation = 3.dp) {
+                    Column(Modifier.navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { vm.navigate(state.location.chapter - 1) }, enabled = state.location.chapter > 0) { Icon(Icons.AutoMirrored.Outlined.NavigateBefore, stringResource(R.string.previous_chapter)) }
+                            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(book.publication.chapters[state.location.chapter].title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)
+                                Text(stringResource(R.string.chapter, state.location.chapter + 1, book.publication.chapters.size), style = MaterialTheme.typography.labelSmall)
+                            }
+                            IconButton(onClick = { vm.navigate(state.location.chapter + 1) }, enabled = state.location.chapter < book.publication.chapters.lastIndex) { Icon(Icons.AutoMirrored.Outlined.NavigateNext, stringResource(R.string.next_chapter)) }
+                        }
+                        var slider by remember(state.location) { mutableFloatStateOf(position) }
+                        var dragging by remember(state.location) { mutableStateOf(false) }
+                        LaunchedEffect(position, dragging) { if (!dragging) slider = position }
+                        val progressLabel = stringResource(R.string.sort_progress)
+                        Slider(value = slider, onValueChange = {
+                            dragging = true
+                            slider = it
+                            seekRequest = ReaderSeekRequest(state.location.generation, ++seekSerial, it)
+                        }, onValueChangeFinished = {
+                            dragging = false
+                            vm.positionChanged(slider)
+                            vm.flush()
+                        }, modifier = Modifier.semantics { contentDescription = progressLabel })
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                            IconButton(onClick = { sheet = "contents" }) { Icon(Icons.AutoMirrored.Outlined.FormatListBulleted, stringResource(R.string.contents)) }
+                            IconButton(onClick = { sheet = "appearance" }) { Icon(Icons.Outlined.TextFields, stringResource(R.string.appearance)) }
+                            IconButton(onClick = { sheet = "search" }) { Icon(Icons.Outlined.Search, stringResource(R.string.search_book)) }
+                            val marked = bookmarks.any { it.chapter == state.location.chapter && kotlin.math.abs(it.position - position) < 0.02f }
+                            IconButton(onClick = { vm.toggleBookmark() }) { Icon(if (marked) Icons.Outlined.BookmarkAdded else Icons.Outlined.BookmarkAdd, stringResource(if (marked) R.string.remove_bookmark else R.string.add_bookmark)) }
+                        }
                     }
                 }
             }
-        } else if (book != null) {
+        }
+        if (!controls && book != null) {
             Surface(Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(12.dp), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)) {
                 Text("${state.location.chapter + 1} / ${book.publication.chapters.size}", Modifier.padding(4.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface)
             }

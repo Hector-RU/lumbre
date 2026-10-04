@@ -8,7 +8,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -30,9 +29,10 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.core.graphics.toColorInt
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -50,7 +50,7 @@ import com.hector.epubreader.MainActivity
 import com.hector.epubreader.data.preferences.ReaderPreferences
 import com.hector.epubreader.ui.settings.ReaderSettings
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((ReaderPreferences) -> ReaderPreferences) -> Unit, back: () -> Unit, settings: () -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -65,23 +65,13 @@ fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((
     var turnRequest by remember { mutableIntStateOf(0) }
     var seekSerial by remember { mutableIntStateOf(0) }
     var seekRequest by remember { mutableStateOf<ReaderSeekRequest?>(null) }
-    var topBarHeight by remember { mutableIntStateOf(0) }
-    var bottomBarHeight by remember { mutableIntStateOf(0) }
-    val density = LocalDensity.current
-    val topInset = WindowInsets.safeDrawing.getTop(density)
-    val bottomInset = WindowInsets.safeDrawing.getBottom(density)
-    val controlsDuration = if (controls) 240 else 180
     val controlsEasing = CubicBezierEasing(0.32f, 0.72f, 0f, 1f)
-    val targetReaderTop = with(density) { (if (controls) topBarHeight.coerceAtLeast(topInset) else topInset).toDp() }
-    val targetReaderBottom = with(density) { (if (controls) bottomBarHeight.coerceAtLeast(bottomInset) else bottomInset).toDp() }
-    val readerTop by animateDpAsState(
-        targetReaderTop,
-        tween(controlsDuration, easing = controlsEasing), label = "readerTop")
-    val readerBottom by animateDpAsState(
-        targetReaderBottom,
-        tween(controlsDuration, easing = controlsEasing), label = "readerBottom")
+    // Keep the reading viewport fixed even when immersive mode hides system bars.
+    // Reader controls are drawn over the book instead of resizing its pages.
+    val readerInsets = WindowInsets.systemBarsIgnoringVisibility.union(WindowInsets.displayCutout)
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val activity = LocalActivity.current
+    val lightInterface = MaterialTheme.colorScheme.surface.luminance() > 0.5f
     DisposableEffect(activity, preferences.volumeNavigation) {
         val host = activity as? MainActivity
         host?.onReaderVolumeKey = if (preferences.volumeNavigation) { direction -> turnRequest += direction; true } else null
@@ -92,29 +82,37 @@ fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((
         lifecycle.addObserver(observer)
         onDispose { lifecycle.removeObserver(observer); vm.flush() }
     }
-    LaunchedEffect(controls, sheet, activity) {
+    LaunchedEffect(controls, sheet, activity, preferences.palette, lightInterface) {
         if (activity == null) return@LaunchedEffect
         val controller = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+        val lightBars = if (controls || sheet != null) lightInterface else !preferences.palette.dark
+        controller.isAppearanceLightStatusBars = lightBars
+        controller.isAppearanceLightNavigationBars = lightBars
         controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         if (controls || sheet != null) controller.show(WindowInsetsCompat.Type.systemBars()) else controller.hide(WindowInsetsCompat.Type.systemBars())
     }
-    DisposableEffect(activity) {
+    DisposableEffect(activity, lightInterface) {
         onDispose {
-            activity?.let { WindowCompat.getInsetsController(it.window, it.window.decorView).show(WindowInsetsCompat.Type.systemBars()) }
+            activity?.let {
+                WindowCompat.getInsetsController(it.window, it.window.decorView).apply {
+                    isAppearanceLightStatusBars = lightInterface
+                    isAppearanceLightNavigationBars = lightInterface
+                    show(WindowInsetsCompat.Type.systemBars())
+                }
+            }
         }
     }
     BackHandler { if (sheet != null) sheet = null else { vm.flush(); back() } }
     val book = state.book
     LaunchedEffect(state.location.chapter, preferences.readingMode) { chapterPull = 0f }
-    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
+    Box(Modifier.fillMaxSize().background(Color(preferences.palette.background.toColorInt()))) {
         if (book != null && !state.error) {
             ReaderWebView(book, state.location, preferences, { vm.position.value }, { controls = !controls }, vm::positionChanged,
                 onLink = { chapter, fragment -> vm.navigate(chapter, fragment = fragment) }, onError = vm::renderError, flush = vm::flush, consumeTarget = vm::consumeNavigationTarget,
-                modifier = Modifier.fillMaxSize().padding(top = readerTop, bottom = readerBottom),
+                modifier = Modifier.fillMaxSize().windowInsetsPadding(readerInsets.only(WindowInsetsSides.Vertical)),
                 onNextChapter = { if (state.location.chapter < book.publication.chapters.lastIndex) vm.navigate(state.location.chapter + 1) }, turnRequest = turnRequest,
                 onPreviousChapter = { if (state.location.chapter > 0) vm.navigate(state.location.chapter - 1, 1f) },
                 seekRequest = seekRequest,
-                viewportAnimating = readerTop != targetReaderTop || readerBottom != targetReaderBottom,
                 onChapterPull = { chapterPull = it })
         }
         val loadingLabel = stringResource(R.string.loading)
@@ -161,12 +159,12 @@ fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((
                         DropdownMenuItem(text = { Text(stringResource(R.string.bookmarks)) }, onClick = { menu = false; sheet = "bookmarks" })
                         DropdownMenuItem(text = { Text(stringResource(R.string.settings)) }, onClick = { menu = false; vm.flush(); settings() })
                     }
-                }, modifier = Modifier.onSizeChanged { topBarHeight = it.height })
+                })
             }
             AnimatedVisibility(controls, modifier = Modifier.align(Alignment.BottomCenter),
                 enter = slideInVertically(tween(240, easing = controlsEasing)) { it } + fadeIn(tween(180)),
                 exit = slideOutVertically(tween(180, easing = controlsEasing)) { it } + fadeOut(tween(120))) {
-                Surface(modifier = Modifier.onSizeChanged { bottomBarHeight = it.height }, tonalElevation = 3.dp) {
+                Surface(tonalElevation = 3.dp) {
                     Column(Modifier.navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = { vm.navigate(state.location.chapter - 1) }, enabled = state.location.chapter > 0) { Icon(Icons.AutoMirrored.Outlined.NavigateBefore, stringResource(R.string.previous_chapter)) }
@@ -201,26 +199,25 @@ fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((
             }
         }
         if (!controls && book != null) {
-            Surface(Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(12.dp), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)) {
-                Text("${state.location.chapter + 1} / ${book.publication.chapters.size}", Modifier.padding(4.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface)
+            Surface(Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(12.dp), color = Color(preferences.palette.background.toColorInt()).copy(alpha = 0.9f)) {
+                Text("${state.location.chapter + 1} / ${book.publication.chapters.size}", Modifier.padding(4.dp), style = MaterialTheme.typography.labelSmall, color = Color(preferences.palette.text.toColorInt()))
             }
         }
     }
-    if (sheet != null && book != null) ModalBottomSheet(onDismissRequest = { sheet = null }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+    if (sheet != null && book != null) ModalBottomSheet(
+        onDismissRequest = { sheet = null },
+        modifier = Modifier.windowInsetsPadding(readerInsets.only(WindowInsetsSides.Top)),
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ) {
         when (sheet) {
             "appearance" -> Column(Modifier.verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
                 ReaderSettings(preferences, change, compact = true)
                 TextButton(onClick = { sheet = null; vm.flush(); settings() }, Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.all_settings)) }
             }
             "contents" -> {
-                SheetTitle(stringResource(R.string.contents))
-                LazyColumn(Modifier.fillMaxWidth().weight(1f, fill = false)) {
-                    items(book.publication.contents) { item ->
-                        val chapter = book.publication.chapters.indexOfFirst { it.path == item.path }
-                        TextButton(onClick = { vm.navigate(chapter, fragment = item.fragment); sheet = null }, modifier = Modifier.fillMaxWidth().padding(start = (16 + item.depth.coerceAtMost(5) * 12).dp)) {
-                            Text(item.title, Modifier.fillMaxWidth(), color = if (chapter == state.location.chapter) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
-                        }
-                    }
+                ContentsSheet(book.publication, state.location.chapter) { chapter, fragment ->
+                    vm.navigate(chapter, fragment = fragment)
+                    sheet = null
                 }
             }
             "bookmarks" -> {

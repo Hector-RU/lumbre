@@ -118,6 +118,25 @@ Environment notes:
   WebView never finishes loading and the reader-ready wait times out. The screen
   timeout was restored to 300000 ms after the run.
 
+## 3 October 2026 — Lumbre 1.1
+
+- Settings search, grouped preferences, typography preview and six additional reading palettes.
+- Searchable table of contents with the current chapter and subsection navigation.
+- Reading colors now follow the selected palette, including WebView color scheme and system bar icons.
+- Reader controls overlay a fixed viewport so showing or hiding them preserves the visible text.
+- Android versionName 1.1 and versionCode 2.
+
+| Check | Result |
+| --- | --- |
+| JVM tests (`testDebugUnitTest`) | 24 passed, 0 failed |
+| Android tests (`connectedDebugAndroidTest`), Pixel 8 / Android 17 | 13 passed, 0 failed, 0 skipped |
+| Release Lint (`lintRelease`) | 0 errors, 19 warnings |
+| Release APK (`assembleRelease`) | Built, aligned and signed with the existing Lumbre release key |
+| APK verification | v2/v3 signatures verified; certificate SHA-256 `09363ff5326e5eff4808da394cececf804e271fe803ee832e59f30710c948f7c` |
+
+The signed `lumbre-1.1.apk` and its SHA-256 checksum are produced under
+`app/build/outputs/release-v1.1/`. Signing material stays outside the repository.
+
 ## Verification scope
 
 Automated validation does not replace testing against a wide EPUB collection, TalkBack,

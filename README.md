@@ -12,10 +12,10 @@ Android Studio project.
 - Persistent local copy: the book stays available even if the original file is moved.
 - Covers, metadata, grid/list layout, search by title/author and five sorting criteria.
 - Reflowable EPUB 2/3: chapters, nav/NCX table of contents, images, CSS, internal links and local fonts.
-- Immersive reader with a central tap to show or hide controls, table of contents, search and bookmarks.
+- Immersive reader with a central tap to show or hide controls without moving the text, searchable table of contents, search and bookmarks.
 - Automatic chapter and position saving; progress resumes when the book is reopened.
 - Four font families (including the book's own), size, line spacing, margins and justification.
-- Six reading themes independent of the app light/dark/system theme and Material You.
+- Twelve reading themes independent of the app light/dark/system theme and Material You, with searchable settings and a typography preview.
 - Book information, mark as read, restart progress and delete only the library copy.
 - No accounts, network, global storage permissions, ads or analytics.
 
@@ -96,7 +96,7 @@ Readium was evaluated as a possible engine evolution but is not added as a depen
 
 ## Limitations and next steps
 
-- Vertical, chapter-based reading. Pagination, notes, highlights and TTS are still pending.
+- Scrolling, page and paragraph reading modes. Notes, highlights and TTS are still pending.
 - Encrypted/DRM EPUBs, obfuscated fonts and fixed layout are rejected with an explicit message.
 - Position is stored as a vertical fraction: exact when returning with the same layout and
   approximate when typography or dimensions change. A text locator/CFI is pending for continuity.

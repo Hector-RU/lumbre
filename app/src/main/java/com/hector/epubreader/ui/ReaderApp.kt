@@ -24,7 +24,7 @@ import com.hector.epubreader.ui.reader.*
 import com.hector.epubreader.ui.settings.SettingsScreen
 import com.hector.epubreader.ui.theme.EpubTheme
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ReaderApp(vm: AppViewModel = viewModel()) {
     val preferences by vm.preferences.collectAsStateWithLifecycle()
@@ -61,7 +61,8 @@ fun ReaderApp(vm: AppViewModel = viewModel()) {
             }, floatingActionButton = {
                 if (route == "library" && library.books.isNotEmpty() && !library.importing) FloatingActionButton(onClick = add) { Icon(Icons.Outlined.Add, stringResource(R.string.add_book)) }
             }) { insets ->
-            NavHost(nav, startDestination = "library", modifier = Modifier.padding(insets).windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))) {
+            val horizontalInsets = if (reader) WindowInsets.systemBarsIgnoringVisibility.union(WindowInsets.displayCutout) else WindowInsets.safeDrawing
+            NavHost(nav, startDestination = "library", modifier = Modifier.padding(insets).windowInsetsPadding(horizontalInsets.only(WindowInsetsSides.Horizontal))) {
                 listOf("library", "search").forEach { destination -> composable(destination) {
                     LibraryScreen(library, preferences, destination == "search", add, { nav.navigate("reader/$it") }, vm::remove, vm::reset)
                 } }

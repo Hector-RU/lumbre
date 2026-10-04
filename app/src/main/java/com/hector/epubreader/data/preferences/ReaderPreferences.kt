@@ -7,13 +7,19 @@ import kotlinx.coroutines.flow.map
 
 private val Context.readerDataStore by preferencesDataStore("reader_preferences")
 
-enum class ReaderPalette(val background: String, val text: String, val link: String, val selection: String) {
+enum class ReaderPalette(val background: String, val text: String, val link: String, val selection: String, val dark: Boolean = false) {
     WHITE("#FFFFFF", "#202124", "#235E9B", "#CBDFF8"),
     CREAM("#FAF7ED", "#302E29", "#486438", "#DCE6C1"),
     SEPIA("#EEE0C5", "#443728", "#795129", "#D5BC8B"),
     GRAY("#E1E3E3", "#242729", "#225E83", "#B6CEDC"),
-    DARK("#202322", "#E0E4DF", "#B2D7BC", "#45594A"),
-    OLED("#000000", "#DDDFDD", "#B2D7BC", "#344A3A")
+    DARK("#202322", "#E0E4DF", "#B2D7BC", "#45594A", true),
+    OLED("#000000", "#DDDFDD", "#B2D7BC", "#344A3A", true),
+    PAPER("#F2EFE6", "#39362F", "#596444", "#D8DFC8"),
+    SAND("#E9DDCA", "#443B30", "#755634", "#D6C1A1"),
+    SAGE("#E3EADD", "#303B2E", "#436445", "#C6D5BC"),
+    MIST("#E4E9EC", "#323D44", "#42657C", "#C5D6DF"),
+    DUSK("#302727", "#E4D6C8", "#D9B99E", "#5A4540", true),
+    INK("#222A33", "#D5DCE2", "#A7C5DC", "#3C5063", true)
 }
 
 data class ReaderPreferences(

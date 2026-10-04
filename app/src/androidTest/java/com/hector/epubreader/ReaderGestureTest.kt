@@ -488,13 +488,40 @@ class ReaderGestureTest {
                         """.trimIndent()))
                         repeat(if (navigation == 0) 6 else 2) { toggle ->
                             var beforeHeight = 0
-                            scenario.onActivity { activity -> beforeHeight = requireNotNull(findWebView(activity.window.decorView)).height }
+                            var beforeWidth = 0
+                            var beforeScrollX = 0
+                            var beforeScrollY = 0
+                            val beforeLocation = IntArray(2)
+                            var beforeSystemBarsVisible = false
+                            scenario.onActivity { activity ->
+                                val web = requireNotNull(findWebView(activity.window.decorView))
+                                beforeHeight = web.height
+                                beforeWidth = web.width
+                                beforeScrollX = web.scrollX
+                                beforeScrollY = web.scrollY
+                                web.getLocationOnScreen(beforeLocation)
+                                beforeSystemBarsVisible = requireNotNull(androidx.core.view.ViewCompat.getRootWindowInsets(web))
+                                    .isVisible(androidx.core.view.WindowInsetsCompat.Type.statusBars())
+                            }
+                            val beforeAnchor = javascript(scenario, "window.testTextAnchor.getBoundingClientRect().toJSON()")
                             touchReader(scenario)
                             SystemClock.sleep(1100)
                             awaitReaderSettled(scenario)
                             scenario.onActivity { activity ->
-                                assertNotEquals("A central tap must toggle controls", beforeHeight, requireNotNull(findWebView(activity.window.decorView)).height)
+                                val web = requireNotNull(findWebView(activity.window.decorView))
+                                assertEquals("Controls must preserve the reading height", beforeHeight, web.height)
+                                assertEquals("Controls must preserve the reading width", beforeWidth, web.width)
+                                assertEquals("Controls must preserve the current page", beforeScrollX, web.scrollX)
+                                assertEquals("Controls must preserve the scroll position", beforeScrollY, web.scrollY)
+                                val afterLocation = IntArray(2)
+                                web.getLocationOnScreen(afterLocation)
+                                assertArrayEquals("Controls must not move the reading viewport", beforeLocation, afterLocation)
+                                assertNotEquals("A central tap must toggle controls and system bars", beforeSystemBarsVisible,
+                                    requireNotNull(androidx.core.view.ViewCompat.getRootWindowInsets(web))
+                                        .isVisible(androidx.core.view.WindowInsetsCompat.Type.statusBars()))
                             }
+                            assertEquals("$mode must keep the text in exactly the same place", beforeAnchor,
+                                javascript(scenario, "window.testTextAnchor.getBoundingClientRect().toJSON()"))
                             val metrics = javascript(scenario, """
                                 (function() {
                                   var visual = window.visualViewport;

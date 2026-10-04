@@ -117,4 +117,18 @@
     <string name="publisher">Publisher: %1$s</string>
     <string name="origin">Source: %1$s</string>
     <string name="license_notice">System fonts are used; no additional font files are included.</string>
+    <string name="search_settings">Search settings</string>
+    <string name="clear_search">Clear search</string>
+    <string name="search_contents">Search chapters</string>
+    <string name="current_chapter">Reading now</string>
+    <string name="typography">Typography</string>
+    <string name="page_layout">Page layout</string>
+    <string name="navigation_settings">Navigation</string>
+    <string name="reading_preview">A page, a moment of calm. The story continues right where you left it.</string>
+    <string name="palette_paper">Paper</string>
+    <string name="palette_sand">Sand</string>
+    <string name="palette_sage">Sage</string>
+    <string name="palette_mist">Mist</string>
+    <string name="palette_dusk">Dusk</string>
+    <string name="palette_ink">Ink</string>
 </resources>

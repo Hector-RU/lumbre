@@ -11,7 +11,7 @@ object EpubContent {
 
     fun render(bytes: ByteArray, preferences: ReaderPreferences, fontScale: Float = 1f, colors: Colors = Colors(
         preferences.palette.background, preferences.palette.text, preferences.palette.link, preferences.palette.selection,
-        preferences.palette.name in setOf("DARK", "OLED")
+        preferences.palette.dark
     )): String {
         val p = preferences.validated()
         val doc = Jsoup.parse(bytes.inputStream(), null, "")

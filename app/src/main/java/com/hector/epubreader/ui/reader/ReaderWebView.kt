@@ -17,9 +17,6 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.ViewCompat
@@ -549,9 +546,8 @@ private class ReadingWebView(context: Context) : WebView(context) {
 @Composable
 fun ReaderWebView(book: OpenBook, location: ReaderLocation, preferences: ReaderPreferences, currentPosition: () -> Float, toggle: () -> Unit, onPosition: (Float) -> Unit, onLink: (Int, String?) -> Unit, onError: () -> Unit, flush: () -> Unit, consumeTarget: (Int) -> Boolean, modifier: Modifier = Modifier, onNextChapter: () -> Unit = {}, onPreviousChapter: () -> Unit = {}, turnRequest: Int = 0, seekRequest: ReaderSeekRequest? = null, onChapterPull: (Float) -> Unit = {}, viewportAnimating: Boolean = false) {
     val fontScale = LocalDensity.current.fontScale
-    val scheme = MaterialTheme.colorScheme
-    fun hex(color: androidx.compose.ui.graphics.Color) = "#%06X".format(color.toArgb() and 0xFFFFFF)
-    val colors = EpubContent.Colors(hex(scheme.surface), hex(scheme.onSurface), hex(scheme.primary), hex(scheme.primaryContainer), scheme.surface.luminance() < 0.5f)
+    val palette = preferences.palette
+    val colors = EpubContent.Colors(palette.background, palette.text, palette.link, palette.selection, palette.dark)
     val latestToggle by rememberUpdatedState(toggle)
     val latestPosition by rememberUpdatedState(onPosition)
     val latestLink by rememberUpdatedState(onLink)

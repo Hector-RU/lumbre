@@ -118,4 +118,18 @@
     <string name="publisher">Editorial: %1$s</string>
     <string name="origin">Origen: %1$s</string>
     <string name="license_notice">Fuentes tipográficas del sistema; sin archivos de fuentes adicionales.</string>
+    <string name="search_settings">Buscar en ajustes</string>
+    <string name="clear_search">Borrar búsqueda</string>
+    <string name="search_contents">Buscar capítulo</string>
+    <string name="current_chapter">Leyendo ahora</string>
+    <string name="typography">Tipografía</string>
+    <string name="page_layout">Distribución de la página</string>
+    <string name="navigation_settings">Navegación</string>
+    <string name="reading_preview">Una página, un momento de calma. La historia continúa allí donde la dejaste.</string>
+    <string name="palette_paper">Papel</string>
+    <string name="palette_sand">Arena</string>
+    <string name="palette_sage">Salvia</string>
+    <string name="palette_mist">Bruma</string>
+    <string name="palette_dusk">Ocaso</string>
+    <string name="palette_ink">Tinta</string>
 </resources>

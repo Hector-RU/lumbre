@@ -1,6 +1,7 @@
 package com.hector.epubreader
 
 import com.hector.epubreader.data.preferences.ReaderPreferences
+import com.hector.epubreader.data.preferences.ReaderPalette
 import com.hector.epubreader.epub.*
 import com.hector.epubreader.epub.renderer.EpubContent
 import com.hector.epubreader.ui.reader.nextPageOffset
@@ -9,6 +10,26 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ReaderCoreTest {
+    @Test fun readingThemesKeepStrongTextContrastAndRenderTheirOwnColors() {
+        fun luminance(hex: String): Double {
+            val channels = hex.removePrefix("#").chunked(2).map {
+                val channel = it.toInt(16) / 255.0
+                if (channel <= 0.04045) channel / 12.92 else Math.pow((channel + 0.055) / 1.055, 2.4)
+            }
+            return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722
+        }
+        ReaderPalette.entries.forEach { palette ->
+            val background = luminance(palette.background)
+            val text = luminance(palette.text)
+            val contrast = (maxOf(background, text) + 0.05) / (minOf(background, text) + 0.05)
+            assertTrue("${palette.name} needs legible body text: $contrast", contrast >= 7.0)
+            val css = Jsoup.parse(EpubContent.render("<p>Reading</p>".toByteArray(), ReaderPreferences(palette = palette)))
+                .selectFirst("style")!!.html()
+            assertTrue(css.contains("background:${palette.background}"))
+            assertTrue(css.contains("color:${palette.text}"))
+            assertTrue(css.contains("color-scheme: ${if (palette.dark) "dark" else "light"}"))
+        }
+    }
     @Test fun limitsActualInflatedStreamIncludingSkippedBytes() {
         BoundedInputStream(ByteArray(20).inputStream(), 10).use { stream ->
             assertEquals(8, stream.read(ByteArray(8)))

@@ -175,8 +175,9 @@ Coverage added in this iteration:
   restore keeps existing duplicates and their progress. Unsafe backup paths are rejected.
 
 These checks use synthetic/original fixtures, not a broad corpus of third-party publications.
-TalkBack's spoken output, real device coverage, API 26, other WebView versions and multiple SAF
-providers still require manual validation. The release checklist is in `ROADMAP.md`.
+The user subsequently confirmed that the proposed manual compatibility, accessibility and backup
+checks worked correctly; see the manual acceptance entry below. Device/API/WebView versions,
+EPUB fixtures and document providers were not specified. The release checklist is in `ROADMAP.md`.
 
 Commands (PowerShell, with the configured JDK):
 
@@ -195,3 +196,54 @@ remains part of the manual EPUB corpus review.
 During development, the 200% font-scale test exposed a distinction between Chromium's layout and
 visual viewports. The final capture uses visual viewport bounds, and accessible page turns retain
 new text positions. Interim failures are resolved; no test or Lint rule was disabled.
+
+
+## 15 October 2026 — manual acceptance reported by the user
+
+After the proposed EPUB compatibility, TalkBack/large-text/navigation and backup/restore checks,
+the user stated that the tests were completed and that everything worked correctly. No issues
+were reported. This records the user's acceptance of the tested flows, separately from the
+automated run above.
+
+The specific devices, Android/WebView versions, books and document providers were not supplied;
+no additional matrix coverage is inferred. The next delivery step is selecting the new version,
+producing the release with the existing signing key and verifying its certificate and checksum.
+
+
+## 15 October 2026 — Lumbre 1.2 signed release
+
+Android versionName `1.2`, versionCode `3`, applicationId `com.hector.epubreader`.
+The APK is in `app/build/outputs/release-v1.2/lumbre-1.2.apk` and uses the existing 1.1 signing key.
+
+| Check | Result |
+| --- | --- |
+| JVM (`testDebugUnitTest`) | 28 passed, 0 failed |
+| Android (`connectedDebugAndroidTest`) | 19 passed, 0 failed, 0 skipped |
+| Debug / release Lint | 0 errors, 20 warnings per variant |
+| Debug / release Gradle builds | Passed |
+| Signed package metadata (`aapt`) | Correct applicationId, versionName 1.2 and versionCode 3 |
+| APK signatures (`apksigner verify`) | v2/v3 valid; certificate matches signed 1.1 |
+| ZIP alignment (`zipalign -c -P 16 -v 4`) | Passed |
+
+Certificate SHA-256: `09363ff5326e5eff4808da394cececf804e271fe803ee832e59f30710c948f7c`.
+APK SHA-256: `8f70075dc7e6e6e97d3e4e5a38c5f636c3a29c3be4a8ab4bce9cc653e795a4a2`.
+APK size: 16112595 bytes. The sibling `lumbre-1.2.apk.sha256`, `release.json`,
+`signature-verification.txt`, `alignment-verification.txt` and `release-notes.md` document the artifact.
+The ordinary Gradle release APK remains unsigned; signing material stays outside the repository.
+
+Environment: the same Pixel 8 AVD / Android 17 / API 37 and WebView 149.0.7827.5 used above.
+The initial automated run found TalkBack still enabled after manual acceptance and had two failures
+in scripted gesture/accessibility-host checks. The resize/turn regression passed in isolation.
+For the final full gesture suite, accessibility settings were saved, TalkBack was temporarily disabled,
+and the original enabled service and setting were restored in a `finally` block and checked afterward.
+That controlled run passed all 19 tests. This is separate from the user's successful manual TalkBack
+acceptance; no test or assertion was disabled or weakened.
+
+Lint review: 13 dependency-update notices, four KTX style suggestions, one API-specific localeConfig
+attribute notice, one unused string and one JavaScript-enablement notice. The reader-owned JavaScript
+is covered by the publication-code blocking tests and documented CSP/network restrictions. Warnings
+remain visible; no dependency migration or Lint suppression was introduced for this release.
+
+Local logs: `test-artifacts/release-1.2-verification.log` contains the build/JVM/Lint run and initial
+Android failures; `release-1.2-android-final.log` records the final complete passing Android run.
+Manual acceptance remains as reported in the preceding entry.

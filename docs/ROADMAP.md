@@ -2,7 +2,7 @@
 
 Updated: 15 October 2026 (America/Santo_Domingo).
 
-## Implemented in this iteration
+## Included in Lumbre 1.2
 
 - Persistent internal text locators for reading progress and bookmarks, with a non-destructive Room v2 migration.
 - Search results per occurrence, each with its own locator; 5,000-result limit explicitly shown.
@@ -10,19 +10,28 @@ Updated: 15 October 2026 (America/Santo_Domingo).
 - Manual SAF ZIP backup/restore: books, positions, bookmarks and app/reading preferences.
 - Accessible forward/backward reading actions and automated regression coverage across reading modes.
 
-## Next release gates
+## Manual acceptance
 
-1. Re-run the verification suite for the selected release. This iteration already passed 28 JVM and
-   19 Android tests; the environment and scope are recorded in `VERIFICATION.md`.
-2. Test a legally available, varied EPUB corpus: EPUB 2/NCX and EPUB 3/nav, nested sections, footnotes,
-   tables, images, embedded fonts, long chapters and unusual publisher CSS. Record each fixture and result.
-3. Run on API 26 and at least one recent physical device, with different Android System WebView versions.
-4. Manually review TalkBack reading order, focus after navigation and sheets, page actions, control
-   visibility, large system fonts, portrait/landscape and cutouts. Automated actions do not certify TalkBack.
-5. Exercise SAF export/restore using local and cloud document providers, low storage, malformed backup,
-   cancellation and interruption. Restoring keeps duplicate books and applies backed-up preferences.
-6. Review Lint warnings, select the release version, sign with the owner's existing key and verify the
-   resulting distribution. Do not confuse ordinary unsigned Gradle output with historical signed APKs.
+The user confirmed that the proposed compatibility, accessibility and backup tests were completed
+and that everything worked correctly, with no reported issues. This acceptance is recorded in
+`VERIFICATION.md`. Specific books, devices, versions and providers were not supplied.
+
+## Lumbre 1.2 delivery
+
+- Android versionName `1.2`, versionCode `3`; changes are summarized in `RELEASE_NOTES.md`.
+- Signed APK: `app/build/outputs/release-v1.2/lumbre-1.2.apk`.
+- The certificate matches 1.1, APK signature schemes v2/v3 verify, and 16 KiB ZIP alignment verifies.
+- The APK's SHA-256 and release metadata are saved alongside the distribution.
+- Release verification passed: 28 JVM tests, 19 Android tests, and Lint with 0 errors/20 warnings
+  per variant. The user's manual acceptance and the controlled automated environment are recorded
+  in `VERIFICATION.md`.
+
+## Additional compatibility coverage to record
+
+As more test details become available, record EPUB fixtures, API 26/recent physical devices,
+Android System WebView versions, TalkBack behavior and local/cloud SAF providers. Edge cases to
+cover include unusual publisher CSS, large books, low storage, malformed backups and interruption.
+The user's successful manual acceptance above remains recorded.
 
 ## Following iterations
 

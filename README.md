@@ -1,5 +1,7 @@
 # Lumbre
 
+Current release: **1.2** (Android versionCode `3`). See [release notes](docs/RELEASE_NOTES.md).
+
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 Android EPUB reader written in Kotlin and Jetpack Compose. It provides a private library,
@@ -40,7 +42,10 @@ access to download dependencies. The installed application runs offline.
 
 - Debug: `app/build/outputs/apk/debug/app-debug.apk`, signed with the local Android debug key.
 - Ordinary Gradle release: `app/build/outputs/apk/release/app-release-unsigned.apk`.
-- The historical signed 1.1 distribution is under `app/build/outputs/release-v1.1/`; it is separate from the ordinary Gradle output.
+- Signed 1.2 distribution: `app/build/outputs/release-v1.2/lumbre-1.2.apk`; its SHA-256 is in
+  `lumbre-1.2.apk.sha256` alongside signature/alignment verification and `release.json` metadata.
+  It uses the same signing certificate as 1.1. Ordinary Gradle output remains unsigned.
+- The historical signed 1.1 distribution remains under `app/build/outputs/release-v1.1/`.
 - To distribute a release, use **Generate Signed App Bundle / APK** with your own key kept outside
   the repository. No signing keys are generated and no passwords are stored in the project.
 - Install from Android Studio or with `adb install -r app/build/outputs/apk/debug/app-debug.apk`.
@@ -115,7 +120,7 @@ Readium was evaluated as a possible engine evolution but is not added as a depen
   metadata). Restore adds missing books, keeps existing duplicates and applies the saved preferences.
   Backups are unencrypted; choose a suitable storage location. App-language selection is managed by
   Android separately and is not included. Synchronization and statistics remain pending.
-- Before publishing: validate against a varied set of real EPUBs and devices, check TalkBack
-  accessibility and sign the new release with the owner's key.
+- The user reported successful manual compatibility, accessibility and backup checks. The 1.2 APK
+  is signed and verified; additional device/EPUB coverage is tracked in `docs/ROADMAP.md`.
 
 See [ROADMAP.md](docs/ROADMAP.md) for completed work, priorities and release gates.

@@ -45,3 +45,10 @@ on 3 October; ordinary Gradle output remains unsigned.
 - Migration, text-index, backup, supplementary-link, script-blocking and rendering tests extend coverage.
 
 The live backlog is in `ROADMAP.md`; observed test results belong in `VERIFICATION.md`.
+
+## Lumbre 1.2 release preparation (15 October 2026)
+
+Android versionName is `1.2` and versionCode is `3`. The signed APK and checksum are under
+`app/build/outputs/release-v1.2/`, separate from ordinary unsigned Gradle output. The certificate
+matches the verified 1.1 distribution. Release notes are in `RELEASE_NOTES.md`; observed checks
+and manual acceptance are recorded in `VERIFICATION.md`. Signing material remains outside Git.

@@ -22,10 +22,10 @@ import com.hector.epubreader.R
 import com.hector.epubreader.epub.EpubPublication
 
 @Composable
-fun ContentsSheet(publication: EpubPublication, currentChapter: Int, navigate: (Int, String?) -> Unit) {
+fun ContentsSheet(publication: EpubPublication, currentChapter: Int, currentPath: String? = null, openResource: (String, String?) -> Unit = { _, _ -> }, navigate: (Int, String?) -> Unit) {
     var query by rememberSaveable { mutableStateOf("") }
     val chapterIndices = remember(publication) { publication.chapters.mapIndexed { index, chapter -> chapter.path to index }.toMap() }
-    val activeIndex = publication.contents.indexOfFirst { chapterIndices[it.path] == currentChapter }
+    val activeIndex = publication.contents.indexOfFirst { if (currentPath != null) it.path == currentPath else chapterIndices[it.path] == currentChapter }
     val filtered = remember(publication, query) {
         publication.contents.withIndex().filter { query.isBlank() || it.value.title.contains(query.trim(), ignoreCase = true) }
     }
@@ -61,10 +61,10 @@ fun ContentsSheet(publication: EpubPublication, currentChapter: Int, navigate: (
                     bottomStart = if (last) 24.dp else 6.dp, bottomEnd = if (last) 24.dp else 6.dp),
                     color = if (active) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.lerp(MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.surfaceVariant, 0.45f),
                     modifier = Modifier.fillMaxWidth().padding(top = if (first && index > 0) 9.dp else 0.dp)
-                        .selectable(active, enabled = chapter >= 0, role = Role.Button, onClick = { navigate(chapter, item.fragment) })) {
+                        .selectable(active, role = Role.Button, onClick = { if (chapter >= 0) navigate(chapter, item.fragment) else openResource(item.path, item.fragment) })) {
                     Row(Modifier.padding(start = (16 + item.depth.coerceIn(0, 5) * 12).dp, end = 16.dp, top = 16.dp, bottom = 16.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        if (item.depth == 0) Text((chapter + 1).toString().padStart(2, '0'), style = MaterialTheme.typography.labelLarge,
+                        if (item.depth == 0) Text(if (chapter >= 0) (chapter + 1).toString().padStart(2, '0') else "·", style = MaterialTheme.typography.labelLarge,
                             color = if (active) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
                         else Icon(Icons.Outlined.SubdirectoryArrowRight, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         Column(Modifier.weight(1f)) {

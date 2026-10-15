@@ -102,7 +102,7 @@ fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((
             }
         }
     }
-    BackHandler { if (sheet != null) sheet = null else { vm.flush(); back() } }
+    BackHandler { if (sheet != null) sheet = null else if (!vm.backFromResource()) { vm.flush(); back() } }
     val book = state.book
     LaunchedEffect(state.location.chapter, preferences.readingMode) { chapterPull = 0f }
     Box(Modifier.fillMaxSize().background(Color(preferences.palette.background.toColorInt()))) {
@@ -113,7 +113,7 @@ fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((
                 onNextChapter = { if (state.location.chapter < book.publication.chapters.lastIndex) vm.navigate(state.location.chapter + 1) }, turnRequest = turnRequest,
                 onPreviousChapter = { if (state.location.chapter > 0) vm.navigate(state.location.chapter - 1, 1f) },
                 seekRequest = seekRequest,
-                onChapterPull = { chapterPull = it })
+                onChapterPull = { chapterPull = it }, onTextPosition = vm::textPositionChanged, currentTextOffset = vm::currentTextOffset, onResourceLink = vm::openResource)
         }
         val loadingLabel = stringResource(R.string.loading)
         if (state.loading) CircularProgressIndicator(Modifier.align(Alignment.Center).semantics { contentDescription = loadingLabel })
@@ -152,7 +152,7 @@ fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((
                 enter = slideInVertically(tween(240, easing = controlsEasing)) { -it } + fadeIn(tween(180)),
                 exit = slideOutVertically(tween(180, easing = controlsEasing)) { -it } + fadeOut(tween(120))) {
                 TopAppBar(title = { Text(book.record.title, maxLines = 1, overflow = TextOverflow.Ellipsis) }, navigationIcon = {
-                    IconButton(onClick = { vm.flush(); back() }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, stringResource(R.string.back)) }
+                    IconButton(onClick = { if (!vm.backFromResource()) { vm.flush(); back() } }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, stringResource(R.string.back)) }
                 }, actions = {
                     IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, stringResource(R.string.more_options)) }
                     DropdownMenu(menu, { menu = false }) {
@@ -215,7 +215,7 @@ fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((
                 TextButton(onClick = { sheet = null; vm.flush(); settings() }, Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.all_settings)) }
             }
             "contents" -> {
-                ContentsSheet(book.publication, state.location.chapter) { chapter, fragment ->
+                ContentsSheet(book.publication, state.location.chapter, state.location.resourcePath, openResource = { path, fragment -> vm.openResource(path, fragment); sheet = null }) { chapter, fragment ->
                     vm.navigate(chapter, fragment = fragment)
                     sheet = null
                 }
@@ -225,7 +225,7 @@ fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((
                 if (bookmarks.isEmpty()) Text(stringResource(R.string.no_bookmarks), Modifier.padding(24.dp))
                 LazyColumn(Modifier.fillMaxWidth().weight(1f, fill = false)) {
                     items(bookmarks, key = { it.id }) { bookmark ->
-                        ListItem(headlineContent = { TextButton(onClick = { vm.navigate(bookmark.chapter, bookmark.position); sheet = null }) { Text(bookmark.title) } }, supportingContent = { Text(stringResource(R.string.bookmark_position, (bookmark.position * 100).toInt())) }, trailingContent = { IconButton(onClick = { vm.removeBookmark(bookmark) }) { Icon(Icons.Outlined.DeleteOutline, stringResource(R.string.remove_bookmark)) } })
+                        ListItem(headlineContent = { TextButton(onClick = { vm.navigate(bookmark.chapter, bookmark.position, textOffset = bookmark.textOffset, resourcePath = bookmark.resourcePath); sheet = null }) { Text(bookmark.title) } }, supportingContent = { Text(stringResource(R.string.bookmark_position, (bookmark.position * 100).toInt())) }, trailingContent = { IconButton(onClick = { vm.removeBookmark(bookmark) }) { Icon(Icons.Outlined.DeleteOutline, stringResource(R.string.remove_bookmark)) } })
                     }
                 }
             }
@@ -236,9 +236,10 @@ fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((
                 if (search.searching) LinearProgressIndicator(Modifier.fillMaxWidth().padding(24.dp).semantics { contentDescription = searchingLabel })
                 if (search.error) Text(stringResource(R.string.reader_error), Modifier.padding(24.dp))
                 if (!search.searching && !search.error && search.query.length >= 2 && search.hits.isEmpty()) Text(stringResource(R.string.no_results), Modifier.padding(24.dp))
+                if (search.hits.size >= com.hector.epubreader.data.BookRepository.MAX_SEARCH_HITS) Text(stringResource(R.string.search_limit), Modifier.padding(horizontal = 24.dp))
                 LazyColumn(Modifier.fillMaxWidth().weight(1f, fill = false)) {
                     items(search.hits) { hit ->
-                        TextButton(onClick = { vm.navigate(hit.chapter, query = hit.query); sheet = null }, modifier = Modifier.fillMaxWidth()) {
+                        TextButton(onClick = { vm.navigate(hit.chapter, query = hit.query, textOffset = hit.textOffset); sheet = null }, modifier = Modifier.fillMaxWidth()) {
                             Column(Modifier.fillMaxWidth().padding(12.dp)) { Text(hit.title, style = MaterialTheme.typography.titleSmall); Text(hit.snippet, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface) }
                         }
                     }

@@ -12,7 +12,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 
-data class ReaderLocation(val chapter: Int = 0, val position: Float = 0f, val fragment: String? = null, val query: String? = null, val generation: Int = 0)
+data class ReaderLocation(val chapter: Int = 0, val position: Float = 0f, val fragment: String? = null, val query: String? = null, val generation: Int = 0, val textOffset: Int? = null, val resourcePath: String? = null)
 data class ReaderUiState(val book: OpenBook? = null, val loading: Boolean = true, val error: Boolean = false, val location: ReaderLocation = ReaderLocation())
 data class ReaderSearchState(val query: String = "", val searching: Boolean = false, val hits: List<SearchHit> = emptyList(), val error: Boolean = false)
 
@@ -26,7 +26,9 @@ class ReaderViewModel(private val app: ReaderApplication, private val id: String
     val search = _search.asStateFlow()
     private var searchJob: Job? = null
     private var loadJob: Job? = null
-    private data class Save(val chapter: Int, val position: Float, val count: Int)
+    private data class Save(val chapter: Int, val position: Float, val count: Int, val textOffset: Int?, val path: String?)
+    private var textOffset: Int? = null
+    private val resourceHistory = ArrayDeque<ReaderLocation>()
     private val saves = Channel<Save>(Channel.CONFLATED)
     private var dirty = false
     private var pendingTargetGeneration: Int? = null
@@ -35,7 +37,7 @@ class ReaderViewModel(private val app: ReaderApplication, private val id: String
         // The application-owned writer drains final positions even when this ViewModel is cleared.
         app.applicationScope.launch {
             for (save in saves) {
-                try { repository.savePosition(id, save.chapter, save.position, save.count) }
+                try { repository.savePosition(id, save.chapter, save.position, save.count, save.textOffset, save.path) }
                 catch (e: CancellationException) { throw e }
                 catch (e: Exception) { fail(e) }
             }
@@ -51,21 +53,39 @@ class ReaderViewModel(private val app: ReaderApplication, private val id: String
             try {
                 val book = repository.open(id)
                 _position.value = book.record.readingPosition
-                _state.value = ReaderUiState(book, loading = false, location = ReaderLocation(book.record.currentChapter.coerceIn(book.publication.chapters.indices), book.record.readingPosition))
+                textOffset = book.record.readingTextOffset
+                _state.value = ReaderUiState(book, loading = false, location = ReaderLocation(book.record.currentChapter.coerceIn(book.publication.chapters.indices), book.record.readingPosition, textOffset = textOffset, resourcePath = book.record.readingPath))
             } catch (e: CancellationException) { throw e } catch (e: Exception) { fail(e) }
         }
     }
 
-    fun navigate(chapter: Int, position: Float = 0f, fragment: String? = null, query: String? = null) {
+    fun navigate(chapter: Int, position: Float = 0f, fragment: String? = null, query: String? = null, textOffset: Int? = null, resourcePath: String? = null) {
         val book = _state.value.book ?: return
         if (chapter !in book.publication.chapters.indices) return
+        if (resourcePath != null && book.publication.resources[resourcePath]?.mediaType !in setOf("application/xhtml+xml", "text/html")) return
         flush()
         _position.value = position
-        _state.update { it.copy(location = ReaderLocation(chapter, position, fragment, query, it.location.generation + 1), error = false) }
+        this.textOffset = textOffset
+        _state.update { it.copy(location = ReaderLocation(chapter, position, fragment, query, it.location.generation + 1, textOffset, resourcePath), error = false) }
         pendingTargetGeneration = _state.value.location.generation
         dirty = true
         flush()
     }
+
+    fun openResource(path: String, fragment: String?) {
+        resourceHistory.addLast(_state.value.location.copy(position = _position.value, textOffset = textOffset, fragment = null, query = null))
+        navigate(_state.value.location.chapter, fragment = fragment, resourcePath = path)
+    }
+
+    fun backFromResource(): Boolean {
+        if (_state.value.location.resourcePath == null && resourceHistory.isEmpty()) return false
+        val target = if (resourceHistory.isEmpty()) ReaderLocation(chapter = _state.value.location.chapter) else resourceHistory.removeLast()
+        navigate(target.chapter, target.position, target.fragment, textOffset = target.textOffset, resourcePath = target.resourcePath)
+        return true
+    }
+
+    fun textPositionChanged(offset: Int?) { textOffset = offset; dirty = true }
+    fun currentTextOffset(): Int? = textOffset
 
     fun positionChanged(position: Float) { if (position.isFinite()) { _position.value = position.coerceIn(0f, 1f); dirty = true } }
     fun consumeNavigationTarget(generation: Int): Boolean {
@@ -76,18 +96,18 @@ class ReaderViewModel(private val app: ReaderApplication, private val id: String
     fun flush() {
         val book = _state.value.book ?: return
         if (!dirty) return
-        saves.trySend(Save(_state.value.location.chapter, _position.value, book.publication.chapters.size))
+        saves.trySend(Save(_state.value.location.chapter, _position.value, book.publication.chapters.size, textOffset, _state.value.location.resourcePath))
         dirty = false
     }
     fun renderError() { _state.update { it.copy(error = true, loading = false) } }
-    fun currentBookmark(): BookmarkEntity? = bookmarks.value.firstOrNull { it.chapter == _state.value.location.chapter && kotlin.math.abs(it.position - _position.value) < 0.02f }
+    fun currentBookmark(): BookmarkEntity? = bookmarks.value.firstOrNull { it.chapter == _state.value.location.chapter && it.resourcePath == _state.value.location.resourcePath && kotlin.math.abs(it.position - _position.value) < 0.02f }
     fun toggleBookmark() = viewModelScope.launch {
         val state = _state.value
         val book = state.book ?: return@launch
         try {
             val existing = currentBookmark()
             if (existing != null) repository.removeBookmark(existing)
-            else repository.addBookmark(BookmarkEntity(bookId = id, chapter = state.location.chapter, position = _position.value, title = book.publication.chapters[state.location.chapter].title))
+            else repository.addBookmark(BookmarkEntity(bookId = id, chapter = state.location.chapter, position = _position.value, title = book.publication.chapters[state.location.chapter].title, textOffset = textOffset, resourcePath = state.location.resourcePath))
         } catch (e: CancellationException) { throw e } catch (e: Exception) { fail(e) }
     }
     fun removeBookmark(bookmark: BookmarkEntity) = viewModelScope.launch {

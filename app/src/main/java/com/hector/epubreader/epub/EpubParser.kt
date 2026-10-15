@@ -37,7 +37,7 @@ class EpubParser {
                     toc?.tag("a")?.forEach { link ->
                         val href = link.attr("href")
                         val path = EpubPaths.resolve(nav.path, href)
-                        if (chapterItems.any { it.path == path }) contents += TocEntry(link.text(), path, EpubPaths.fragment(href), (link.parents().count { it.normalName() == "ol" } - 1).coerceAtLeast(0))
+                        if (manifest.any { it.path == path && it.mediaType in setOf("application/xhtml+xml", "text/html") }) contents += TocEntry(link.text(), path, EpubPaths.fragment(href), (link.parents().count { it.normalName() == "ol" } - 1).coerceAtLeast(0))
                     }
                 }
                 if (contents.isEmpty()) {
@@ -46,7 +46,7 @@ class EpubParser {
                         val href = point.children().firstOrNull { it.normalName().equals("content", true) }?.attr("src").orEmpty()
                         if (href.isNotEmpty()) {
                             val path = EpubPaths.resolve(ncx.path, href)
-                            if (chapterItems.any { it.path == path }) contents += TocEntry(point.tag("navLabel").firstOrNull()?.text().orEmpty(), path, EpubPaths.fragment(href), point.parents().count { it.normalName().equals("navPoint", true) })
+                            if (manifest.any { it.path == path && it.mediaType in setOf("application/xhtml+xml", "text/html") }) contents += TocEntry(point.tag("navLabel").firstOrNull()?.text().orEmpty(), path, EpubPaths.fragment(href), point.parents().count { it.normalName().equals("navPoint", true) })
                         }
                     }
                 }

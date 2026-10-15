@@ -109,6 +109,42 @@ private val readingAnchorPageScript = """
 
 private class ReadingWebView(context: Context) : WebView(context) {
     var toggle: () -> Unit = {}
+    var reportTextPosition: (Int?) -> Unit = {}
+    var lastTextOffset: Int? = null
+    private var capturePending = false
+    private var captureAgain = false
+    fun captureTextPosition() {
+        if (restoring || disposed || viewportAnimating || resizePosition != null) return
+        if (capturePending) { captureAgain = true; return }
+        capturePending = true
+        val key = renderKey
+        evaluateJavascript(TextLocatorScripts.capture(horizontalMode())) { value ->
+            capturePending = false
+            if (key == renderKey && !restoring && !disposed && !viewportAnimating && resizePosition == null) {
+                lastTextOffset = value?.toIntOrNull()?.takeIf { it >= 0 }
+                reportTextPosition(lastTextOffset)
+            }
+            if (captureAgain) {
+                captureAgain = false
+                postOnAnimation { captureTextPosition() }
+            }
+        }
+    }
+    fun restoreTextPosition(textOffset: Int?, fallback: Float, done: () -> Unit) {
+        if (textOffset == null) { restore(fallback); done(); return }
+        val key = renderKey
+        evaluateJavascript(TextLocatorScripts.restore(textOffset, horizontalMode())) { result ->
+            if (key != renderKey || disposed) return@evaluateJavascript
+            val offset = result?.toFloatOrNull()?.takeIf { it.isFinite() && it >= 0 }
+            if (offset == null) restore(fallback)
+            else if (horizontalMode() && pageStride > 0f) {
+                pageIndex = (offset / pageStride).toInt().coerceIn(0, (pageCount - 1).coerceAtLeast(0))
+                scrollToOffset((pageIndex * pageStride).roundToInt())
+            } else scrollToOffset(offset.roundToInt().coerceIn(0, maximum()))
+            lastTextOffset = textOffset.takeIf { offset != null }
+            done()
+        }
+    }
     var reportPosition: (Float) -> Unit = {}
     var requestNextChapter: () -> Unit = {}
     var requestPreviousChapter: () -> Unit = {}
@@ -266,6 +302,8 @@ private class ReadingWebView(context: Context) : WebView(context) {
         }
     })
     init {
+        ViewCompat.replaceAccessibilityAction(this, AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_SCROLL_FORWARD, context.getString(R.string.next_page)) { _, _ -> step(1); true }
+        ViewCompat.replaceAccessibilityAction(this, AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_SCROLL_BACKWARD, context.getString(R.string.previous_page)) { _, _ -> step(-1); true }
         ViewCompat.replaceAccessibilityAction(this, AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_CLICK, context.getString(R.string.reader_controls)) { _, _ -> performClick(); true }
     }
     override fun performClick(): Boolean {
@@ -279,6 +317,13 @@ private class ReadingWebView(context: Context) : WebView(context) {
             }
         } else toggle()
         return true
+    }
+    // WebView can route standard scroll actions to Chromium before the ViewCompat delegate.
+    // Use the same measured page turns as touch and volume navigation.
+    override fun performAccessibilityAction(action: Int, arguments: android.os.Bundle?): Boolean = when (action) {
+        android.view.accessibility.AccessibilityNodeInfo.ACTION_SCROLL_FORWARD -> { step(1); true }
+        android.view.accessibility.AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD -> { step(-1); true }
+        else -> super.performAccessibilityAction(action, arguments)
     }
     // GestureDetector invokes performClick only after a confirmed central tap, preserving links and selection.
     @SuppressLint("ClickableViewAccessibility")
@@ -399,6 +444,9 @@ private class ReadingWebView(context: Context) : WebView(context) {
             duration = 240
             interpolator = PathInterpolator(0.4f, 0f, 0.2f, 1f)
             addUpdateListener { animation -> scrollToOffset(animation.animatedValue as Int) }
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) { captureTextPosition() }
+            })
             start()
         }
     }
@@ -475,6 +523,7 @@ private class ReadingWebView(context: Context) : WebView(context) {
         if (!restoring && !viewportAnimating && resizePosition == null) {
             lastKnownFraction = fraction()
             reportPosition(lastKnownFraction)
+            captureTextPosition()
         }
     }
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -544,13 +593,15 @@ private class ReadingWebView(context: Context) : WebView(context) {
 }
 
 @Composable
-fun ReaderWebView(book: OpenBook, location: ReaderLocation, preferences: ReaderPreferences, currentPosition: () -> Float, toggle: () -> Unit, onPosition: (Float) -> Unit, onLink: (Int, String?) -> Unit, onError: () -> Unit, flush: () -> Unit, consumeTarget: (Int) -> Boolean, modifier: Modifier = Modifier, onNextChapter: () -> Unit = {}, onPreviousChapter: () -> Unit = {}, turnRequest: Int = 0, seekRequest: ReaderSeekRequest? = null, onChapterPull: (Float) -> Unit = {}, viewportAnimating: Boolean = false) {
+fun ReaderWebView(book: OpenBook, location: ReaderLocation, preferences: ReaderPreferences, currentPosition: () -> Float, toggle: () -> Unit, onPosition: (Float) -> Unit, onLink: (Int, String?) -> Unit, onError: () -> Unit, flush: () -> Unit, consumeTarget: (Int) -> Boolean, modifier: Modifier = Modifier, onNextChapter: () -> Unit = {}, onPreviousChapter: () -> Unit = {}, turnRequest: Int = 0, seekRequest: ReaderSeekRequest? = null, onChapterPull: (Float) -> Unit = {}, viewportAnimating: Boolean = false, onTextPosition: (Int?) -> Unit = {}, currentTextOffset: () -> Int? = { location.textOffset }, onResourceLink: (String, String?) -> Unit = { _, _ -> }) {
     val fontScale = LocalDensity.current.fontScale
     val palette = preferences.palette
     val colors = EpubContent.Colors(palette.background, palette.text, palette.link, palette.selection, palette.dark)
     val latestToggle by rememberUpdatedState(toggle)
     val latestPosition by rememberUpdatedState(onPosition)
     val latestLink by rememberUpdatedState(onLink)
+    val latestTextPosition by rememberUpdatedState(onTextPosition)
+    val latestResourceLink by rememberUpdatedState(onResourceLink)
     val latestError by rememberUpdatedState(onError)
     val latestFlush by rememberUpdatedState(flush)
     val latestNextChapter by rememberUpdatedState(onNextChapter)
@@ -559,7 +610,7 @@ fun ReaderWebView(book: OpenBook, location: ReaderLocation, preferences: ReaderP
     val renderPreferences = preferences.copy(appTheme = "system", dynamicColors = false, interfaceColor = "green", sort = "recent", ascending = false, listView = false)
     AndroidView(modifier = modifier, factory = { context ->
         ReadingWebView(context).apply {
-            settings.javaScriptEnabled = false
+            settings.javaScriptEnabled = true
             settings.allowFileAccess = false
             settings.allowContentAccess = false
             settings.blockNetworkLoads = true
@@ -573,6 +624,7 @@ fun ReaderWebView(book: OpenBook, location: ReaderLocation, preferences: ReaderP
             overScrollMode = android.view.View.OVER_SCROLL_IF_CONTENT_SCROLLS
             this.toggle = { latestToggle() }
             reportPosition = { latestPosition(it) }
+            reportTextPosition = { latestTextPosition(it) }
             requestNextChapter = { latestNextChapter() }
             requestPreviousChapter = { latestPreviousChapter() }
             reportChapterPull = { latestChapterPull(it) }
@@ -582,7 +634,7 @@ fun ReaderWebView(book: OpenBook, location: ReaderLocation, preferences: ReaderP
         view.viewportAnimating = viewportAnimating
         view.pages = preferences.readingMode == "pages"
         view.paragraphs = preferences.readingMode == "paragraphs"
-        if (view.settings.javaScriptEnabled != (view.pages || view.paragraphs)) view.settings.javaScriptEnabled = view.pages || view.paragraphs
+
         view.hasNextChapter = location.chapter < book.publication.chapters.lastIndex
         view.hasPreviousChapter = location.chapter > 0
         view.isLongClickable = !view.pages && !view.paragraphs
@@ -592,35 +644,58 @@ fun ReaderWebView(book: OpenBook, location: ReaderLocation, preferences: ReaderP
         if (view.renderKey != key) {
             val position = currentPosition()
             val targeted = consumeTarget(location.generation)
+            val textOffset = if (targeted) location.textOffset else currentTextOffset() ?: view.lastTextOffset.takeIf { (view.renderKey as? List<*>)?.firstOrNull() == location }
+            view.lastTextOffset = textOffset
             val fragment = location.fragment.takeIf { targeted }
             val query = location.query.takeIf { targeted }
             view.renderKey = key
             view.beginRender()
             view.setBackgroundColor(colors.background.toColorInt())
             val client = BookWebViewClient(book, renderPreferences, colors, fontScale,
-                onLink = { index, fragment -> latestLink(index, fragment) }, onError = { latestError() },
+                onLink = { index, fragment -> latestLink(index, fragment) }, onError = { latestError() }, onResourceLink = { path, fragment -> latestResourceLink(path, fragment) },
                 onReady = {
                     listOf(100L, 350L, 800L).forEach { delay ->
                         view.postDelayed({
                             if (view.renderKey == key && view.restoring) {
                                 view.measurePagination {
                                     if (view.renderKey != key || !view.restoring) return@measurePagination
-                                    if (fragment == null && query == null) view.restore(view.requestedPosition ?: position)
-                                    if (delay == 800L) {
-                                        view.restoring = false
+                                    fun finish() {
+                                        if (delay != 800L) return
+                                        fun complete() {
+                                            if (view.renderKey != key) return
+                                            view.restoring = false
+                                            latestPosition(view.fraction())
+                                            if (textOffset != null && view.lastTextOffset == textOffset && view.requestedPosition == null && fragment == null) {
+                                                // Keep the intended character when it lands in the middle of a page.
+                                                // Recapturing that page's first character on every reflow would drift backwards.
+                                                view.lastTextOffset = textOffset
+                                                latestTextPosition(textOffset)
+                                            } else view.captureTextPosition()
+                                        }
                                         if (query != null) {
+                                            // Native find may move to its first match. Restore the selected result
+                                            // before reporting a position or allowing another reading gesture.
+                                            val restoredOffset = view.lastTextOffset
+                                            view.setFindListener { _, _, finished ->
+                                                if (finished && view.renderKey == key) {
+                                                    view.setFindListener(null)
+                                                    view.restoreTextPosition(restoredOffset, position, ::complete)
+                                                }
+                                            }
                                             view.findAllAsync(query)
                                             view.postDelayed({ if (view.renderKey == key) view.clearMatches() }, 30_000)
-                                        }
-                                        latestPosition(view.fraction())
+                                        } else complete()
                                     }
+                                    if (fragment == null) view.restoreTextPosition(
+                                        textOffset.takeIf { view.requestedPosition == null }, view.requestedPosition ?: position, ::finish)
+                                    else finish()
                                 }
                             }
                         }, delay)
                     }
                 })
             view.webViewClient = client
-            view.loadUrl(client.url(book.publication.chapters[location.chapter].path, fragment))
+            view.loadUrl(client.url(location.resourcePath ?: book.publication.chapters[location.chapter].path, fragment))
         }
         if (turnRequest != view.lastTurnRequest) {
             val direction = if (turnRequest > view.lastTurnRequest) 1 else -1
@@ -633,7 +708,7 @@ fun ReaderWebView(book: OpenBook, location: ReaderLocation, preferences: ReaderP
             if (!view.restoring) view.seek(seekRequest.fraction)
         }
     }, onRelease = { view ->
-        if (!view.restoring) latestPosition(view.fraction())
+        if (!view.restoring) { latestPosition(view.fraction()); latestTextPosition(view.lastTextOffset) }
         latestFlush()
         view.dispose()
         view.renderKey = null

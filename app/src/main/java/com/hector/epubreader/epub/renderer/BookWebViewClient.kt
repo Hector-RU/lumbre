@@ -18,7 +18,8 @@ class BookWebViewClient(
     private val fontScale: Float,
     private val onLink: (Int, String?) -> Unit,
     private val onReady: (WebView) -> Unit,
-    private val onError: () -> Unit
+    private val onError: () -> Unit,
+    private val onResourceLink: (String, String?) -> Unit = { _, _ -> }
 ) : WebViewClient() {
     val host = "book-${book.record.id}.invalid"
     fun url(path: String, fragment: String? = null): String = Uri.Builder().scheme("https").authority(host).path("/$path").fragment(fragment).build().toString()
@@ -32,6 +33,9 @@ class BookWebViewClient(
             val currentPath = view.url?.toUri()?.path
             if (currentPath == uri.path && uri.fragment != null) return false
             onLink(chapter, uri.fragment)
+        } else if (book.publication.resources[path]?.mediaType in setOf("application/xhtml+xml", "text/html")) {
+            if (view.url?.toUri()?.path == uri.path && uri.fragment != null) return false
+            onResourceLink(path, uri.fragment)
         }
         return true
     }

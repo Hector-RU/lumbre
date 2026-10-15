@@ -132,4 +132,14 @@
     <string name="palette_mist">Bruma</string>
     <string name="palette_dusk">Ocaso</string>
     <string name="palette_ink">Tinta</string>
+    <string name="next_page">Página siguiente</string>
+    <string name="previous_page">Página anterior</string>
+    <string name="search_limit">Se muestran las primeras 5000 coincidencias. Refina la búsqueda para ver más.</string>
+    <string name="export_backup">Exportar respaldo</string>
+    <string name="restore_backup">Restaurar respaldo</string>
+    <string name="backup_description">Guarda libros, progreso, marcadores y preferencias en un ZIP. Al restaurar se añaden los libros que faltan, se conservan los existentes y se aplican las preferencias del respaldo.</string>
+    <string name="backup_working">Procesando respaldo</string>
+    <string name="backup_exported">Respaldo exportado</string>
+    <string name="backup_restored">Respaldo restaurado; los libros existentes se conservaron</string>
+    <string name="backup_error">No se pudo completar el respaldo. Comprueba el archivo y el espacio disponible.</string>
 </resources>

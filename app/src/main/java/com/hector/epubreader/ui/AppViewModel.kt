@@ -16,7 +16,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
-data class LibraryUiState(val books: List<BookEntity> = emptyList(), val loading: Boolean = true, val importing: Boolean = false, @param:StringRes val message: Int? = null)
+data class LibraryUiState(val books: List<BookEntity> = emptyList(), val loading: Boolean = true, val importing: Boolean = false, @param:StringRes val message: Int? = null, val backupBusy: Boolean = false)
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as ReaderApplication
@@ -44,7 +44,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun import(uri: Uri) {
-        if (_library.value.importing) return
+        if (_library.value.importing || _library.value.backupBusy) return
         _library.update { it.copy(importing = true) }
         viewModelScope.launch {
             try {
@@ -63,8 +63,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun remove(book: BookEntity) = action { repository.remove(book) }
     fun reset(book: BookEntity, completed: Boolean) = action { repository.reset(book, completed) }
     fun clearHistory() = action { repository.clearHistory() }
+    fun exportBackup(uri: Uri) = backupAction { app.backup.export(uri); R.string.backup_exported }
+    fun restoreBackup(uri: Uri) = backupAction { app.backup.restore(uri); R.string.backup_restored }
+    private fun backupAction(block: suspend () -> Int) {
+        if (_library.value.backupBusy || _library.value.importing) return
+        _library.update { it.copy(backupBusy = true) }
+        viewModelScope.launch {
+            try { val message = block(); _library.update { it.copy(message = message) } }
+            catch (e: CancellationException) { throw e }
+            catch (e: Exception) { _library.update { it.copy(message = R.string.backup_error) } }
+            finally { _library.update { it.copy(backupBusy = false) } }
+        }
+    }
     fun clearMessage() { _library.update { it.copy(message = null) } }
     private fun action(block: suspend () -> Unit) = viewModelScope.launch {
+        if (_library.value.backupBusy) return@launch
         try { block() } catch (e: CancellationException) { throw e } catch (e: Exception) { report(e) }
     }
     private fun report(error: Throwable) {

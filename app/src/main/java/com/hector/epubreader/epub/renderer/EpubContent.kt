@@ -9,20 +9,30 @@ import org.jsoup.nodes.TextNode
 object EpubContent {
     data class Colors(val background: String, val text: String, val link: String, val selection: String, val dark: Boolean)
 
-    fun render(bytes: ByteArray, preferences: ReaderPreferences, fontScale: Float = 1f, colors: Colors = Colors(
-        preferences.palette.background, preferences.palette.text, preferences.palette.link, preferences.palette.selection,
-        preferences.palette.dark
-    )): String {
-        val p = preferences.validated()
+    internal fun document(bytes: ByteArray): org.jsoup.nodes.Document {
         val doc = Jsoup.parse(bytes.inputStream(), null, "")
+        doc.outputSettings().prettyPrint(false)
         doc.select("script, iframe, frame, frameset, object, embed, applet, form, input, button, textarea, select, base, meta[http-equiv], foreignObject, audio, video").remove()
         doc.allElements.forEach { element ->
+            // Reader-owned identifiers cannot be supplied by a publication.
+            element.removeAttr("data-reader-offset")
+            if (element.id() == "reader-flow") element.removeAttr("id")
             element.attributes().asList().filter { it.key.startsWith("on", true) || it.key.equals("srcdoc", true) }.forEach { element.removeAttr(it.key) }
             listOf("href", "src", "xlink:href", "action").forEach { attr ->
                 val value = element.attr(attr).trim().lowercase()
                 if (value.startsWith("javascript:") || value.startsWith("intent:") || value.startsWith("file:") || value.startsWith("content:") || value.startsWith("data:text/html")) element.removeAttr(attr)
             }
         }
+        return doc
+    }
+
+    fun render(bytes: ByteArray, preferences: ReaderPreferences, fontScale: Float = 1f, colors: Colors = Colors(
+        preferences.palette.background, preferences.palette.text, preferences.palette.link, preferences.palette.selection,
+        preferences.palette.dark
+    )): String {
+        val p = preferences.validated()
+        val doc = document(bytes)
+        EpubText.index(doc.body(), mark = true)
         doc.head().prependElement("meta").attr("name", "viewport").attr("content", "width=device-width, initial-scale=1")
         when (p.readingMode) {
             "pages" -> {
@@ -112,5 +122,41 @@ object EpubContent {
         collect(body, emptyList())
         body.empty()
         slides.forEach { slide -> body.appendElement("div").addClass("reader-paragraph").appendChild(slide) }
+    }
+}
+
+/** UTF-16 offsets are shared by jsoup, SQLite and DOM Range; wrappers survive paragraph cloning. */
+object EpubText {
+    fun text(bytes: ByteArray): String = index(EpubContent.document(bytes).body())
+
+    internal fun index(body: Element, mark: Boolean = false): String {
+        val text = StringBuilder()
+        fun visit(node: Node) {
+            // Graphics retain their native text structure; HTML wrappers are invalid inside SVG/MathML.
+            if (node is Element && node.normalName() in setOf("style", "script", "noscript", "template", "svg", "math")) return
+            if (node is TextNode) {
+                val start = text.length
+                text.append(node.wholeText)
+                if (mark && node.wholeText.isNotBlank()) {
+                    // Avoid picking up a publisher's generic span rules or introducing a layout box.
+                    val span = Element("lumbre-text").attr("data-reader-offset", start.toString())
+                        .attr("style", "all:unset!important;display:contents!important")
+                    node.replaceWith(span)
+                    span.appendChild(node)
+                }
+            } else {
+                node.childNodes().toList().forEach(::visit)
+                if (node is Element && node.isBlock) text.append('\n')
+            }
+        }
+        visit(body)
+        return text.toString()
+    }
+
+    fun matches(text: String, query: String): Sequence<IntRange> {
+        val words = query.trim().split(Regex("\\s+"))
+        if (query.trim().length < 2) return emptySequence()
+        return Regex(words.joinToString("\\s+") { Regex.escape(it) }, RegexOption.IGNORE_CASE)
+            .findAll(text).map { it.range }
     }
 }

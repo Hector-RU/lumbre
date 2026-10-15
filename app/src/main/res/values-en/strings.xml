@@ -131,4 +131,14 @@
     <string name="palette_mist">Mist</string>
     <string name="palette_dusk">Dusk</string>
     <string name="palette_ink">Ink</string>
+    <string name="next_page">Next page</string>
+    <string name="previous_page">Previous page</string>
+    <string name="search_limit">Showing the first 5000 matches. Refine your search to see more.</string>
+    <string name="export_backup">Export backup</string>
+    <string name="restore_backup">Restore backup</string>
+    <string name="backup_description">Save books, progress, bookmarks and preferences in a ZIP. Restoring adds missing books, keeps existing books and applies the backup preferences.</string>
+    <string name="backup_working">Processing backup</string>
+    <string name="backup_exported">Backup exported</string>
+    <string name="backup_restored">Backup restored; existing books were kept</string>
+    <string name="backup_error">Could not complete the backup. Check the file and available storage.</string>
 </resources>

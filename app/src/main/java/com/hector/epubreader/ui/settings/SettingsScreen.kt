@@ -39,7 +39,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 @Composable
-fun SettingsScreen(preferences: ReaderPreferences, change: ((ReaderPreferences) -> ReaderPreferences) -> Unit, clearHistory: () -> Unit) {
+fun SettingsScreen(preferences: ReaderPreferences, change: ((ReaderPreferences) -> ReaderPreferences) -> Unit, clearHistory: () -> Unit, exportBackup: () -> Unit = {}, restoreBackup: () -> Unit = {}, backupBusy: Boolean = false) {
     var confirmHistory by remember { mutableStateOf(false) }
     var licenses by remember { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
@@ -78,9 +78,15 @@ fun SettingsScreen(preferences: ReaderPreferences, change: ((ReaderPreferences) 
                 TogglePreference(stringResource(R.string.list_view), preferences.listView) { value -> change { it.copy(listView = value) } }
             }
         }
-        if (matchesSettings(query, R.string.data, R.string.clear_history)) {
+        if (matchesSettings(query, R.string.data, R.string.clear_history, R.string.export_backup, R.string.restore_backup)) {
             SettingsGroup(stringResource(R.string.data), Icons.Outlined.History) {
                 PreferenceRow(stringResource(R.string.clear_history), onClick = { confirmHistory = true })
+                Text(stringResource(R.string.backup_description), Modifier.padding(horizontal = 24.dp, vertical = 8.dp), style = MaterialTheme.typography.bodySmall)
+                if (backupBusy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(24.dp).semantics { contentDescription = context.getString(R.string.backup_working) })
+                else {
+                    PreferenceRow(stringResource(R.string.export_backup), onClick = exportBackup)
+                    PreferenceRow(stringResource(R.string.restore_backup), onClick = restoreBackup)
+                }
             }
         }
         if (matchesSettings(query, R.string.about, R.string.licenses)) {
@@ -93,7 +99,7 @@ fun SettingsScreen(preferences: ReaderPreferences, change: ((ReaderPreferences) 
                 R.string.reading, R.string.reader_theme, R.string.typography, R.string.font, R.string.font_size, R.string.page_layout,
                 R.string.line_height, R.string.paragraph_spacing, R.string.horizontal_margin, R.string.vertical_margin, R.string.justified,
                 R.string.navigation_settings, R.string.reading_mode, R.string.volume_navigation, R.string.language_settings, R.string.app_language,
-                R.string.library, R.string.sort, R.string.ascending, R.string.list_view, R.string.data, R.string.clear_history, R.string.about, R.string.licenses)) {
+                R.string.library, R.string.sort, R.string.ascending, R.string.list_view, R.string.data, R.string.clear_history, R.string.export_backup, R.string.restore_backup, R.string.about, R.string.licenses)) {
             Text(stringResource(R.string.no_results), Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
@@ -222,9 +228,9 @@ fun ChoicePreference(title: String, selected: String, options: List<Pair<String,
     var show by remember { mutableStateOf(false) }
     PreferenceRow(title, options.firstOrNull { it.first == selected }?.let { stringResource(it.second) }, onClick = { show = true })
     if (show) AlertDialog(onDismissRequest = { show = false }, title = { Text(title) }, text = {
-        Column(Modifier.verticalScroll(rememberScrollState())) {
+        Column(Modifier.verticalScroll(rememberScrollState()).selectableGroup()) {
             options.forEach { (value, label) ->
-                Row(Modifier.fillMaxWidth().clickable { onSelect(value); show = false }.padding(vertical = 4.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).selectable(selected == value, role = Role.RadioButton, onClick = { onSelect(value); show = false }).padding(vertical = 4.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     RadioButton(selected == value, onClick = null)
                     Text(stringResource(label), Modifier.padding(12.dp))
                 }

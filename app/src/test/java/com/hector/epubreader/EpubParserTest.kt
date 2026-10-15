@@ -44,6 +44,14 @@ class EpubParserTest {
         assertEquals("p1", book.contents.first().fragment)
         assertNotNull(book.coverPath)
     }
+    @Test fun keepsSupplementaryContentsWithoutChangingReadingOrder() {
+        val opf = """<package><metadata><title>Notes</title></metadata><manifest><item id="c" href="text/uno.xhtml" media-type="application/xhtml+xml"/><item id="n" href="notes.xhtml" media-type="application/xhtml+xml"/><item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/></manifest><spine><itemref idref="c"/><itemref idref="n" linear="no"/></spine></package>"""
+        val nav = """<html><nav epub:type="toc"><a href="text/uno.xhtml">Main</a><a href="notes.xhtml#note">Notes</a></nav></html>"""
+        val book = parser.parse(epub(mapOf("OEBPS/book.opf" to opf, "OEBPS/nav.xhtml" to nav, "OEBPS/notes.xhtml" to "<p id='note'>Note</p>")), "book")
+        assertEquals(1, book.chapters.size)
+        assertEquals("OEBPS/notes.xhtml", book.contents[1].path)
+        assertEquals("note", book.contents[1].fragment)
+    }
     @Test fun fallsBackWhenMetadataIncomplete() {
         val opf = """<package><metadata/><manifest><item id="c" href="text/uno.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="c"/></spine></package>"""
         val book = parser.parse(epub(mapOf("OEBPS/book.opf" to opf)), "Mi libro")

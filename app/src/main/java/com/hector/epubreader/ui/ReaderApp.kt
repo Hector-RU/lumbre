@@ -38,6 +38,8 @@ fun ReaderApp(vm: AppViewModel = viewModel()) {
     val reader = route.startsWith("reader/")
     val readerSettings = route == "readerSettings"
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(vm::import) }
+    val exportBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri -> uri?.let(vm::exportBackup) }
+    val restoreBackup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(vm::restoreBackup) }
     val add = { launcher.launch(arrayOf("application/epub+zip", "application/octet-stream", "application/zip")) }
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(library.message) {
@@ -66,7 +68,12 @@ fun ReaderApp(vm: AppViewModel = viewModel()) {
                 listOf("library", "search").forEach { destination -> composable(destination) {
                     LibraryScreen(library, preferences, destination == "search", add, { nav.navigate("reader/$it") }, vm::remove, vm::reset)
                 } }
-                listOf("settings", "readerSettings").forEach { destination -> composable(destination) { SettingsScreen(preferences, { vm.updatePreferences(it) }, { vm.clearHistory() }) } }
+                listOf("settings", "readerSettings").forEach { destination -> composable(destination) {
+                    SettingsScreen(preferences, { vm.updatePreferences(it) }, { vm.clearHistory() },
+                        exportBackup = { exportBackup.launch("lumbre-backup.zip") },
+                        restoreBackup = { restoreBackup.launch(arrayOf("application/zip", "application/octet-stream")) },
+                        backupBusy = library.backupBusy || library.importing)
+                } }
                 composable("reader/{bookId}") { backStack ->
                     val id = requireNotNull(backStack.arguments?.getString("bookId"))
                     val readerVm: ReaderViewModel = viewModel(key = id, factory = viewModelFactory { initializer { ReaderViewModel(app, id) } })

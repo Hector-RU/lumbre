@@ -13,10 +13,11 @@ Android Studio project.
 - Covers, metadata, grid/list layout, search by title/author and five sorting criteria.
 - Reflowable EPUB 2/3: chapters, nav/NCX table of contents, images, CSS, internal links and local fonts.
 - Immersive reader with a central tap to show or hide controls without moving the text, searchable table of contents, search and bookmarks.
-- Automatic chapter and position saving; progress resumes when the book is reopened.
+- Automatic chapter and text-position saving; progress resumes across typography and reading-mode changes, with fraction fallback for older positions.
 - Four font families (including the book's own), size, line spacing, margins and justification.
 - Twelve reading themes independent of the app light/dark/system theme and Material You, with searchable settings and a typography preview.
 - Book information, mark as read, restart progress and delete only the library copy.
+- Manual ZIP backup and restore through SAF, including books, progress, bookmarks and reading/app preferences.
 - No accounts, network, global storage permissions, ads or analytics.
 
 ## Build and run
@@ -38,7 +39,8 @@ On macOS/Linux, use `./gradlew` and configure a local JDK/SDK. The first build n
 access to download dependencies. The installed application runs offline.
 
 - Debug: `app/build/outputs/apk/debug/app-debug.apk`, signed with the local Android debug key.
-- Release: `app/build/outputs/apk/release/app-release-unsigned.apk`.
+- Ordinary Gradle release: `app/build/outputs/apk/release/app-release-unsigned.apk`.
+- The historical signed 1.1 distribution is under `app/build/outputs/release-v1.1/`; it is separate from the ordinary Gradle output.
 - To distribute a release, use **Generate Signed App Bundle / APK** with your own key kept outside
   the repository. No signing keys are generated and no passwords are stored in the project.
 - Install from Android Studio or with `adb install -r app/build/outputs/apk/debug/app-debug.apk`.
@@ -78,7 +80,9 @@ Screenshots from the Android 35 emulator: [library](docs/screenshots/02-library.
 [reader](docs/screenshots/03-reader.png), [appearance](docs/screenshots/04-appearance.png),
 [search](docs/screenshots/09-search.png), [landscape](docs/screenshots/12-landscape.png).
 
-Verification performed: **19 JVM tests + 5 Android tests passing**; Lint reports no errors.
+Latest verification (15 October 2026): **28 JVM tests + 19 Android tests passing**.
+Debug/release Lint reports 0 errors and 20 warnings per variant. The environment, checks and
+manual-validation limits are recorded in [VERIFICATION.md](docs/VERIFICATION.md).
 SAF import, reading, appearance controls, table of contents, force close, restoration, search,
 bookmarks and deletion without removing the original EPUB were also checked manually.
 
@@ -98,12 +102,20 @@ Readium was evaluated as a possible engine evolution but is not added as a depen
 
 - Scrolling, page and paragraph reading modes. Notes, highlights and TTS are still pending.
 - Encrypted/DRM EPUBs, obfuscated fonts and fixed layout are rejected with an explicit message.
-- Position is stored as a vertical fraction: exact when returning with the same layout and
-  approximate when typography or dimensions change. A text locator/CFI is pending for continuity.
-- Search: one result per chapter; matches are highlighted when the chapter is opened.
-- External links are not opened. Links to XHTML outside the spine are pending.
+- New positions use a chapter/resource path and a UTF-16 text offset stable across reading layouts.
+  Pagination opens the page containing the text. Older positions and image-only content fall back
+  to a scroll fraction. This locator is internal, not EPUB CFI; it assumes the same book content.
+- Search lists individual matches in the main reading order and opens their text position.
+  Results are limited to 5,000 per query, with an explicit notice; refine the query to narrow them.
+- Internal links and table-of-contents entries can open manifest XHTML outside the spine; Back returns
+  to the previous reading location. External links remain blocked.
 - Import limits: 512 MiB compressed, 1 GiB declared uncompressed, 20,000 entries;
   2 MiB XML and 8 MiB XHTML chapters. The book is never fully loaded into memory.
-- Export, backup, synchronization and statistics are not implemented.
+- Settings → Data exports/restores a versioned ZIP backup (up to 1,000 books, 2 GiB total and 8 MiB
+  metadata). Restore adds missing books, keeps existing duplicates and applies the saved preferences.
+  Backups are unencrypted; choose a suitable storage location. App-language selection is managed by
+  Android separately and is not included. Synchronization and statistics remain pending.
 - Before publishing: validate against a varied set of real EPUBs and devices, check TalkBack
-  accessibility and sign a release with the owner's key.
+  accessibility and sign the new release with the owner's key.
+
+See [ROADMAP.md](docs/ROADMAP.md) for completed work, priorities and release gates.

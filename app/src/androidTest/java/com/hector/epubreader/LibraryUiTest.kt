@@ -33,24 +33,24 @@ class LibraryUiTest {
     @Test fun emptyLibraryOffersDocumentImport() {
         var imported = false
         compose.setContent { EpubTheme { LibraryScreen(LibraryUiState(loading = false), ReaderPreferences(), false, { imported = true }, {}, {}, { _, _ -> }) } }
-        compose.onNodeWithText("Tu biblioteca está vacía").assertIsDisplayed()
-        compose.onNodeWithText("Añadir EPUB").performClick()
+        compose.onNodeWithText(compose.activity.getString(R.string.empty_title)).assertIsDisplayed()
+        compose.onNodeWithText(compose.activity.getString(R.string.add_book)).performClick()
         assertTrue(imported)
     }
     @Test fun themePreferenceCanBeChanged() {
         var dark = false
         compose.setContent { EpubTheme { SettingsScreen(ReaderPreferences(), { transform -> dark = transform(ReaderPreferences()).appTheme == "dark" }, {}) } }
-        compose.onNodeWithText("Tema de la aplicación").performClick()
-        compose.onNode(hasText("Oscuro") and hasAnyAncestor(isDialog())).performClick()
+        compose.onNodeWithText(compose.activity.getString(R.string.app_theme)).performClick()
+        compose.onNode(hasText(compose.activity.getString(R.string.dark_theme)) and hasAnyAncestor(isDialog())).assertIsNotSelected().performClick()
         assertTrue(dark)
     }
 
     @Test fun settingsSearchFindsAndSelectsAReadingTheme() {
         val preferences = mutableStateOf(ReaderPreferences())
         compose.setContent { EpubTheme { SettingsScreen(preferences.value, { transform -> preferences.value = transform(preferences.value) }, {}) } }
-        compose.onNodeWithText("Buscar en ajustes").performTextInput("Tema de lectura")
-        compose.onNodeWithText("Tema de la aplicación").assertDoesNotExist()
-        compose.onNodeWithText("Ocaso").performScrollTo().performClick().assertIsSelected()
+        compose.onNodeWithText(compose.activity.getString(R.string.search_settings)).performTextInput(compose.activity.getString(R.string.reader_theme))
+        compose.onNodeWithText(compose.activity.getString(R.string.app_theme)).assertDoesNotExist()
+        compose.onNodeWithText(compose.activity.getString(R.string.palette_dusk)).performScrollTo().performClick().assertIsSelected()
         assertEquals(ReaderPalette.DUSK, preferences.value.palette)
     }
 
@@ -60,8 +60,8 @@ class LibraryUiTest {
             listOf(TocEntry("Inicio", "one.xhtml"), TocEntry("Una nota del capítulo", "one.xhtml", "note", 1), TocEntry("Final", "two.xhtml")), emptyMap())
         var destination: Pair<Int, String?>? = null
         compose.setContent { EpubTheme { ContentsSheet(publication, 0) { chapter, fragment -> destination = chapter to fragment } } }
-        compose.onNodeWithText("Leyendo ahora").assertIsDisplayed()
-        compose.onNodeWithText("Buscar capítulo").performTextInput("nota")
+        compose.onNodeWithText(compose.activity.getString(R.string.current_chapter)).assertIsDisplayed()
+        compose.onNodeWithText(compose.activity.getString(R.string.search_contents)).performTextInput("nota")
         compose.onNodeWithText("Final").assertDoesNotExist()
         compose.onNodeWithText("Una nota del capítulo").performClick()
         assertEquals(0 to "note", destination)

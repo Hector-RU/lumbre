@@ -8,14 +8,14 @@ import com.hector.epubreader.epub.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import org.jsoup.Jsoup
+import com.hector.epubreader.epub.renderer.EpubText
 import java.io.File
 import java.io.IOException
 import java.security.MessageDigest
 import java.util.UUID
 
 data class OpenBook(val record: BookEntity, val publication: EpubPublication, val file: File)
-data class SearchHit(val chapter: Int, val title: String, val snippet: String, val query: String)
+data class SearchHit(val chapter: Int, val title: String, val snippet: String, val query: String, val textOffset: Int = 0)
 data class ImportResult(val book: BookEntity, val duplicate: Boolean)
 
 class BookRepository(private val context: Context, private val dao: LibraryDao, private val parser: EpubParser) {
@@ -37,7 +37,7 @@ class BookRepository(private val context: Context, private val dao: LibraryDao, 
             val resolver = context.contentResolver
             val name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
                 if (it.moveToFirst()) it.getString(0) else null
-            } ?: "EPUB"
+            } ?: if (uri.scheme == "file") File(requireNotNull(uri.path)).name else "EPUB"
             if (!name.endsWith(".epub", ignoreCase = true) && resolver.getType(uri) != "application/epub+zip") throw InvalidEpub("Not an EPUB")
             val id = UUID.randomUUID().toString()
             val folder = File(root, id).apply { mkdirs() }
@@ -87,9 +87,9 @@ class BookRepository(private val context: Context, private val dao: LibraryDao, 
         OpenBook(record, parser.parse(file, record.title), file)
     }
 
-    suspend fun savePosition(id: String, chapter: Int, position: Float, count: Int) {
+    suspend fun savePosition(id: String, chapter: Int, position: Float, count: Int, textOffset: Int? = null, path: String? = null) {
         val safePosition = position.takeIf { it.isFinite() }?.coerceIn(0f, 1f) ?: 0f
-        dao.saveProgress(id, chapter.coerceIn(0, (count - 1).coerceAtLeast(0)), safePosition, ReadingProgress.fraction(chapter, safePosition, count), System.currentTimeMillis())
+        dao.saveProgress(id, chapter.coerceIn(0, (count - 1).coerceAtLeast(0)), safePosition, ReadingProgress.fraction(chapter, safePosition, count), System.currentTimeMillis(), textOffset?.takeIf { it >= 0 }, path)
     }
 
     suspend fun reset(book: BookEntity, completed: Boolean) = dao.saveProgress(book.id, if (completed) book.chapterCount - 1 else 0, if (completed) 1f else 0f, if (completed) 1f else 0f, book.lastRead)
@@ -109,9 +109,13 @@ class BookRepository(private val context: Context, private val dao: LibraryDao, 
         book.publication.chapters.forEachIndexed { index, chapter ->
             currentCoroutineContext().ensureActive()
             val bytes = parser.readResource(book.file, chapter.path)
-            val text = Jsoup.parse(bytes.inputStream(), null, "").body().text()
-            val match = text.indexOf(term, ignoreCase = true)
-            if (match >= 0) hits += SearchHit(index, chapter.title, text.substring((match - 55).coerceAtLeast(0), (match + term.length + 100).coerceAtMost(text.length)), term)
+            val text = EpubText.text(bytes)
+            EpubText.matches(text, term).forEach { match ->
+                currentCoroutineContext().ensureActive()
+                // Bound pathological books without silently hiding truncation in the UI.
+                if (hits.size >= MAX_SEARCH_HITS) return@withContext hits
+                hits += SearchHit(index, chapter.title, text.substring((match.first - 55).coerceAtLeast(0), (match.last + 101).coerceAtMost(text.length)).replace(Regex("\\s+"), " "), term, match.first)
+            }
         }
         hits
     }
@@ -120,4 +124,6 @@ class BookRepository(private val context: Context, private val dao: LibraryDao, 
         require(id.matches(Regex("[a-f0-9-]{36}")))
         return File(root, id)
     }
+
+    companion object { const val MAX_SEARCH_HITS = 5000 }
 }

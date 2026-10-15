@@ -140,5 +140,58 @@ The signed `lumbre-1.1.apk` and its SHA-256 checksum are produced under
 ## Verification scope
 
 Automated validation does not replace testing against a wide EPUB collection, TalkBack,
-large-scale fonts and different Android System WebView versions. The release is produced without
-a publishing signature; that signature requires the owner's key.
+large-scale fonts and different Android System WebView versions. Ordinary Gradle release output is unsigned. The separate signed 1.1 artifact is documented
+in the 3 October entry; signing a new distribution requires the owner's existing key.
+
+
+## 15 October 2026 — persistence, search, links and portable backup
+
+Environment: Pixel 8 AVD, Android 17 / API 37, x86_64, 1080 × 2400;
+Android System WebView `149.0.7827.5`.
+
+| Check | Result |
+| --- | --- |
+| JVM (`testDebugUnitTest`) | 28 passed, 0 failed |
+| Android (`connectedDebugAndroidTest`) | 19 passed, 0 failed, 0 skipped |
+| Debug Lint (`lintDebug`) | 0 errors, 20 warnings |
+| Release Lint (`lintRelease`) | 0 errors, 20 warnings |
+| Debug / ordinary release | APKs built; ordinary release remains unsigned |
+
+Coverage added in this iteration:
+
+- Room opens the exported v1 schema, migrates to v2 and retains existing progress and bookmarks.
+- UTF-16 offsets remain consistent through nested inline markup, paragraph transformation and pagination.
+- SVG text remains native markup in all three modes; no HTML locator wrapper is inserted into graphics.
+- Search returns multiple occurrences per chapter and can restore a selected occurrence beyond the first.
+- Reader recreation retains a saved character across scroll/pages/paragraphs, larger margins and text,
+  including a simulated system font scale of 200%. The test checks that the character is on screen.
+- Reflow retains the intended character instead of repeatedly replacing it with the beginning of a page.
+- WebView publishes a forward accessibility action and uses it to advance the reading position.
+- Settings choices expose radio-group, role and selection semantics. UI tests use localized strings.
+- Supplementary contents remain outside the main reading order and internal link callbacks accept them.
+- With reader JavaScript enabled, real WebView loads in all three modes strip publication scripts and
+  event handlers; remote requests receive 403 and external navigation is intercepted.
+- ZIP backup/restore preserves titles, positions, text locators, bookmarks and preferences. Repeating
+  restore keeps existing duplicates and their progress. Unsafe backup paths are rejected.
+
+These checks use synthetic/original fixtures, not a broad corpus of third-party publications.
+TalkBack's spoken output, real device coverage, API 26, other WebView versions and multiple SAF
+providers still require manual validation. The release checklist is in `ROADMAP.md`.
+
+Commands (PowerShell, with the configured JDK):
+
+```powershell
+.\gradlew.bat testDebugUnitTest lintDebug lintRelease assembleDebug assembleRelease connectedDebugAndroidTest
+```
+
+Generated reports: `app/build/reports/tests/testDebugUnitTest/index.html`,
+`app/build/reports/androidTests/connected/debug/index.html`,
+`app/build/reports/lint-results-debug.html` and `app/build/reports/lint-results-release.html`.
+Local execution logs are under ignored `test-artifacts/`: `iteration-final.log` records the full
+Android suite; `iteration-packaging.log` records the final JVM/Lint/APK pass after the SVG-only
+preservation guard. That guard is checked by the JVM DOM regression; broader visual SVG validation
+remains part of the manual EPUB corpus review.
+
+During development, the 200% font-scale test exposed a distinction between Chromium's layout and
+visual viewports. The final capture uses visual viewport bounds, and accessible page turns retain
+new text positions. Interim failures are resolved; no test or Lint rule was disabled.

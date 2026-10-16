@@ -91,7 +91,8 @@ Screenshots from the Android 35 emulator: [library](docs/screenshots/02-library.
 [reader](docs/screenshots/03-reader.png), [appearance](docs/screenshots/04-appearance.png),
 [search](docs/screenshots/09-search.png), [landscape](docs/screenshots/12-landscape.png).
 
-Latest verification (15 October 2026, unreleased iteration): **36 JVM tests + 25 Android tests passing**.
+Latest verification (15 October 2026, 1.3 candidate): **42 JVM tests passing** and
+**33 Android tests passing on each of API 26 and API 37**.
 Debug/release Lint reports 0 errors and 21 warnings per variant. The environment, checks and
 manual-validation limits are recorded in [VERIFICATION.md](docs/VERIFICATION.md).
 SAF import, reading, appearance controls, table of contents, force close, restoration, search,
@@ -139,3 +140,7 @@ See [COMPATIBILITY.md](docs/COMPATIBILITY.md) for the device/publication accepta
 [VERIFICATION.md](docs/VERIFICATION.md) for actual results and [.github/workflows/android.yml](.github/workflows/android.yml)
 for CI. TTS pauses when leaving the reader and requires an installed offline voice for the book
 language. It is not a background playback service. Each book can belong to one named collection.
+
+Signed candidate: `app/build/outputs/release-v1.3/lumbre-1.3.apk`. Its certificate matches 1.2;
+the signed upgrade preserves reading data. Packaging checksums and provenance sit beside the APK.
+This candidate has not been published.

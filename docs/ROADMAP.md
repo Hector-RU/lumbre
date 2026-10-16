@@ -49,8 +49,8 @@ The user's successful manual acceptance above remains recorded.
   The annotation list separates the quote and note, labels the chapter/style/color and expands
   long content. Selections and notes are limited to 10,000
   UTF-16 code units each; graphic-only SVG/MathML text is outside the canonical text index.
-- Pending delivery: manual acceptance on representative books/devices, final signed candidate
-  verification and publication. This does not change the already published 1.2 APK.
+- The signed candidate and update from 1.2 are verified. Manual acceptance on representative
+  books/devices and publication remain pending. The published 1.2 APK remains available.
 
 ## Following iterations
 
@@ -94,6 +94,9 @@ The user's successful manual acceptance above remains recorded.
 - GitHub Actions runs JVM/Lint/build on changes, with API 26/37 instrumentation on tags/manual
   dispatch. Configuration is prepared locally; remote execution requires pushing the workflow.
 
-Remaining delivery gates: physical-device/TalkBack and real-publication acceptance, API 26
-matrix result, existing-key signing/certificate verification and publication. See COMPATIBILITY.md.
+The API 26 matrix passed all 33 tests, and the existing release key signs the 1.3 candidate.
+The publisher corpus checks 62 chapters across all three HTML rendering modes.
+Remaining delivery gates: physical-device/TalkBack, audible TTS and real-publication visual
+acceptance, cloud SAF providers, remote CI execution and publication. See COMPATIBILITY.md
+and VERIFICATION.md for final device results and signed-update evidence.
 Synchronization and wider EPUB engine/CFI support remain separate future product decisions.

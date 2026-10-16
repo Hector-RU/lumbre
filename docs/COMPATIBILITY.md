@@ -5,7 +5,7 @@ Each release must attach actual results, not infer device coverage from unit tes
 | Environment | Required checks | Status for 1.3 |
 | --- | --- | --- |
 | API 26 AOSP emulator, Chromium 58 | complete instrumentation suite, including backup and test TTS engine | 33 passed; stock AOSP WebView registered with a resource overlay |
-| API 37 emulator, Chromium 149 | complete instrumentation suite | final local results recorded in VERIFICATION.md |
+| API 37 emulator, Chromium 149 | complete instrumentation suite | 33 passed; final local results recorded in VERIFICATION.md |
 | Physical device, recent Android | TalkBack, 200% font, rotation, selection toolbar, TTS voice | pending device availability |
 | Local and cloud SAF providers | export, restore, cancellation, revoked permission | pending manual provider validation |
 | Low storage | interrupted writes, recovery and useful error | injected stream failure regression; physical validation pending |

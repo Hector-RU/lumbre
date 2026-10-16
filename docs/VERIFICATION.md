@@ -397,3 +397,63 @@ navigation/edit/delete actions; the reader behind the card reflects the saved bl
 The emulator's original inactive accessibility setting and empty enabled-services value were
 restored after capture. PNGs remain in ignored `test-artifacts/annotation-style-editor.png`,
 `annotation-style-list.png` and the earlier large-text capture.
+
+## Lumbre 1.3 implementation verification — 15 October 2026
+
+The six roadmap stages are implemented: release preparation, recoverable backups,
+compatibility coverage, bounded text caching and highlight rendering, reader separation/CI,
+and annotation export, collection filters and foreground offline TTS.
+
+| Check | Result / evidence |
+| --- | --- |
+| JVM | 42 passed, zero failures/errors/skips |
+| Debug/release Lint | 0 errors, 21 warnings per variant |
+| Debug/release and test APK builds | Passed; `test-artifacts/roadmap-corpus-final-build.log` |
+| Android 8 / API 26 | 33 passed in 114.488 seconds; `test-artifacts/roadmap-api26-complete-final.log` |
+| Android 17 / API 37 | 33 passed in 551.811 seconds; `test-artifacts/roadmap-api37-complete-confirmed.log` |
+| Publisher corpus | 62 chapters in three rendering modes; details and hashes in COMPATIBILITY.md |
+| Release signature | Same certificate as 1.2; v2/v3 verified, 16 KiB alignment verified |
+
+The 1,000-paragraph synthetic rendering regression (65,903 source bytes, 871 annotations)
+recorded 339 ms for scroll, 188 ms for pages and 235 ms for paragraphs on this host/JVM.
+These are local sample timings with exact marker/offset assertions, not a device performance
+guarantee or a measured speedup over the previous release. LRU bounds/eviction and sweep
+equivalence to brute force are checked independently.
+
+API 26 ran the official AOSP x86 image with its bundled WebView 58.0.3029.125,
+720×1280 at density 320. A resource-only framework overlay registers the existing AOSP
+provider; SELinux stays enforcing. API 37 uses WebView 149.0.7827.5 at 1080×2400.
+Instrumentation uses the deterministic test TTS engine; audible physical voice quality is
+not established by these tests. Screenshot UiAutomation is disabled during regressions.
+
+Legacy compatibility fixes preserve stable insets across immersive controls and account
+for Chromium 58's layout/visual viewport coordinate difference. Geometry assertions now
+use the correct native viewport on engines without VisualViewport. The actual last-text,
+page-boundary, reflow, locator and gesture checks remain enabled. A temporarily absent
+accessibility node is retried until the existing action-availability deadline.
+
+Signed candidate: `app/build/outputs/release-v1.3/lumbre-1.3.apk`, versionCode 4,
+16,219,091 bytes; source commit `c164dd45d6764d577c1cba895c9a1950f87a5c2e`
+with a clean working tree at signing. Later verification documentation does not alter it.
+SHA-256: `9b16a2170254a58a687278831550233b34ada378d0429875e07289e7924a29e3`.
+Certificate SHA-256: `09363ff5326e5eff4808da394cececf804e271fe803ee832e59f30710c948f7c`.
+The adjacent APK JSON, checksum, signature and alignment files provide packaging evidence.
+
+The final signed 1.2 → 1.3 update passed both phases of the independent Java instrumentation
+probe on the isolated API 26 emulator. Schema 2 migrated to 5; the EPUB, chapter 1,
+fraction 0.4, UTF-16 locator 1234 and bookmark survived, with an empty initial collection.
+Evidence: `test-artifacts/roadmap-signed-upgrade-final.log` and `signed-upgrade-prepare.log` /
+`signed-upgrade-verify.log`. The signed app's library rendered successfully after the update;
+its ADB screenshot is `test-artifacts/lumbre-signed-library.png`. The isolated emulator was
+then stopped; the user's API 37 emulator was retained.
+
+Physical TalkBack, audible offline voices, real-publication visual acceptance and cloud SAF
+provider behavior remain manual acceptance gates. Interrupted destination writes and restore
+recovery have automated regression coverage; those checks do not establish provider-specific
+behavior. The workflow is prepared locally; remote Actions and publication have not run.
+Earlier failed native logs and AGP-generated Android reports remain historical, not final evidence.
+The earlier API 37 attempt reported a transient null accessibility node and an activity close
+timeout; it was stopped and its log retained. The final run retried the nullable node and ran
+with the emulator's original inactive accessibility setting and empty enabled-services value,
+both confirmed after completion. All 33 tests passed with no skips or disabled assertions.
+Machine-readable final summary: `test-artifacts/roadmap-validation.json`.

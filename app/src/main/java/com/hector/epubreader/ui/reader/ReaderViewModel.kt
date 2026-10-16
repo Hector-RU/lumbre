@@ -27,7 +27,7 @@ class ReaderViewModel(private val app: ReaderApplication, private val id: String
     private var speechChapter = 0
     private var speechPath: String? = null
     private var speechLength = 1
-    private val speech = ReaderSpeech(app, progress = { offset, chunk ->
+    private val speechDelegate = lazy { ReaderSpeech(app, progress = { offset, chunk ->
         if (chunk) navigate(speechChapter, textOffset = offset, resourcePath = speechPath, fromSpeech = true)
         textOffset = offset
         _position.value = (offset.toFloat() / speechLength).coerceIn(0f, 1f)
@@ -36,8 +36,15 @@ class ReaderViewModel(private val app: ReaderApplication, private val id: String
         val book = _state.value.book
         if (speechSession && speechPath == null && book != null && speechChapter < book.publication.chapters.lastIndex) startSpeech(speechChapter + 1, null, 0)
         else { speechSession = false; flush() }
-    }, enginePackage = speechEnginePackage, interrupted = { pauseSpeech() })
-    val speechState = speech.state
+    }, enginePackage = speechEnginePackage, interrupted = { pauseSpeech() }) }
+    private val speech get() = speechDelegate.value
+    private val _speechState = MutableStateFlow(SpeechState())
+    val speechState = _speechState.asStateFlow()
+    private var speechObservation: Job? = null
+    fun prepareSpeech() {
+        val engine = speech
+        if (speechObservation == null) speechObservation = viewModelScope.launch { engine.state.collect { _speechState.value = it } }
+    }
     val exportingAnnotations = MutableStateFlow(false)
     val exportMessage = MutableStateFlow<Int?>(null)
 
@@ -61,6 +68,7 @@ class ReaderViewModel(private val app: ReaderApplication, private val id: String
     }
 
     fun playSpeech() {
+        prepareSpeech()
         val location = _state.value.location
         startSpeech(location.chapter, location.resourcePath, textOffset)
     }
@@ -84,6 +92,7 @@ class ReaderViewModel(private val app: ReaderApplication, private val id: String
     }
 
     fun pauseSpeech() {
+        if (!speechDelegate.isInitialized()) { flush(); return }
         val wasPlaying = speech.state.value.playing || (speechSession && speechHasPosition)
         speechSession = false
         speechJob?.cancel()
@@ -184,10 +193,10 @@ class ReaderViewModel(private val app: ReaderApplication, private val id: String
         return true
     }
 
-    fun textPositionChanged(offset: Int?) { if (!speech.state.value.playing && !speechAnchorPending) { textOffset = offset; dirty = true } }
+    fun textPositionChanged(offset: Int?) { if (!speechState.value.playing && !speechAnchorPending) { textOffset = offset; dirty = true } }
     fun currentTextOffset(): Int? = textOffset
 
-    fun positionChanged(position: Float) { if (!speech.state.value.playing && !speechAnchorPending && position.isFinite()) { _position.value = position.coerceIn(0f, 1f); dirty = true } }
+    fun positionChanged(position: Float) { if (!speechState.value.playing && !speechAnchorPending && position.isFinite()) { _position.value = position.coerceIn(0f, 1f); dirty = true } }
     fun consumeNavigationTarget(generation: Int): Boolean {
         val pending = pendingTargetGeneration == generation
         if (pending) { pendingTargetGeneration = null; speechAnchorPending = false }
@@ -232,5 +241,5 @@ class ReaderViewModel(private val app: ReaderApplication, private val id: String
         }
     }
     private fun fail(e: Throwable) { Log.w("Reader", "Operation failed: ${e.javaClass.simpleName}"); renderError() }
-    override fun onCleared() { speech.close(); speechJob?.cancel(); flush(); saves.close(); super.onCleared() }
+    override fun onCleared() { if (speechDelegate.isInitialized()) speech.close(); speechJob?.cancel(); flush(); saves.close(); super.onCleared() }
 }

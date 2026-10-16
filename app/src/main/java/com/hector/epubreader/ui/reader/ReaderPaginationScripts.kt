@@ -70,4 +70,3 @@ internal val readingAnchorPageScript = """
   return Math.max(0, Math.floor((range.getBoundingClientRect().left + scroll) / width));
 })()
 """.trimIndent()
-

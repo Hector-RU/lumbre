@@ -13,6 +13,9 @@ local.properties
 # Signing material must never be committed
 *.jks
 *.keystore
+*.p12
+*.pfx
+signing-credential.xml
 keystore.properties
 
 # Profiling and crash dumps

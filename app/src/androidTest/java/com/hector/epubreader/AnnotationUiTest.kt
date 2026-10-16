@@ -149,7 +149,8 @@ class AnnotationUiTest {
             compose.onNodeWithContentDescription(context.getString(R.string.annotation_blue)).performClick()
             compose.onNode(hasSetTextAction()).performTextReplacement("Edited note")
             compose.onNodeWithText(context.getString(R.string.save_annotation)).performClick()
-            compose.waitUntil(10_000) { vm.annotations.value.singleOrNull()?.note == "Edited note" }
+            try { compose.waitUntil(10_000) { vm.annotations.value.singleOrNull()?.note == "Edited note" } }
+            catch (error: Throwable) { throw AssertionError("Edited annotation did not commit: error=${vm.annotationError.value}, notes=${vm.annotations.value.map { it.note }}, editorNodes=${compose.onAllNodes(hasSetTextAction()).fetchSemanticsNodes().size}", error) }
             assertEquals("shade", vm.annotations.value.single().style)
             assertEquals("blue", vm.annotations.value.single().color)
             renderedAppearance("rgb(188, 220, 255)", "none")

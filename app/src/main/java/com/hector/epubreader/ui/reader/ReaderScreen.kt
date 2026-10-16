@@ -32,6 +32,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
@@ -146,7 +147,7 @@ fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((
                     catch (_: Exception) { selectionError = true }
                 } })
         }
-        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding())
+        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().zIndex(2f))
         val loadingLabel = stringResource(R.string.loading)
         if (state.loading) CircularProgressIndicator(Modifier.align(Alignment.Center).semantics { contentDescription = loadingLabel })
         if (state.error) Surface(Modifier.fillMaxSize()) {
@@ -188,7 +189,7 @@ fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((
                 }, actions = {
                     IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, stringResource(R.string.more_options)) }
                     DropdownMenu(menu, { menu = false }) {
-                        DropdownMenuItem(text = { Text(stringResource(R.string.read_aloud)) }, onClick = { menu = false; sheet = "speech" })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.read_aloud)) }, onClick = { menu = false; vm.prepareSpeech(); sheet = "speech" })
                         DropdownMenuItem(text = { Text(stringResource(R.string.export_annotations)) }, enabled = annotations.isNotEmpty() && !exporting,
                             onClick = { menu = false; exportLauncher.launch("lumbre-notes.md") })
                         DropdownMenuItem(text = { Text(stringResource(R.string.annotations)) }, onClick = { menu = false; sheet = "annotations" })

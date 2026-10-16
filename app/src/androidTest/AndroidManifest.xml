@@ -1,4 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <instrumentation android:name="com.hector.epubreader.ReleaseUpgradeProbe" android:targetPackage="com.hector.epubreader" />
     <application>
         <provider android:name="com.hector.epubreader.FixtureProvider"
             android:authorities="com.hector.epubreader.test.fixture"

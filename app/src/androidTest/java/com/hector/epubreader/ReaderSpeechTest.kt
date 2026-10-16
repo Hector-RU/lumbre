@@ -24,6 +24,7 @@ class ReaderSpeechTest {
         compose.runOnIdle {
             vm = com.hector.epubreader.ui.reader.ReaderViewModel(context.applicationContext as ReaderApplication, book.id, repository, instrumentation.context.packageName)
             store.put("reader", vm)
+            vm.prepareSpeech()
         }
         try {
             compose.waitUntil(15000) { vm.state.value.book != null && vm.speechState.value.ready }

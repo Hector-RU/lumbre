@@ -584,4 +584,3 @@ internal class ReadingWebView(context: Context) : WebView(context) {
         }
     }
 }
-

@@ -52,8 +52,12 @@ class ReaderGestureTest {
     private fun launchReaderScenario(): ActivityScenario<ComponentActivity> =
         ActivityScenario.launch(ComponentActivity::class.java).also { scenario ->
             scenario.onActivity { activity ->
-                activity.setShowWhenLocked(true)
-                activity.setTurnScreenOn(true)
+                if (android.os.Build.VERSION.SDK_INT >= 27) {
+                    activity.setShowWhenLocked(true)
+                    activity.setTurnScreenOn(true)
+                } else {
+                    activity.window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
+                }
                 activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             }
         }
@@ -69,7 +73,9 @@ class ReaderGestureTest {
     private fun javascript(scenario: ActivityScenario<ComponentActivity>, script: String): String {
         val result = AtomicReference<String>()
         scenario.onActivity { activity ->
-            requireNotNull(findWebView(activity.window.decorView)).evaluateJavascript(script) { result.set(it) }
+            val web = requireNotNull(findWebView(activity.window.decorView))
+            val viewport = "window.testLegacyViewport={pageLeft:${web.scrollX}/(window.devicePixelRatio||1),pageTop:${web.scrollY}/(window.devicePixelRatio||1),offsetLeft:${web.scrollX}/(window.devicePixelRatio||1)+document.documentElement.getBoundingClientRect().left,offsetTop:${web.scrollY}/(window.devicePixelRatio||1)+document.documentElement.getBoundingClientRect().top,width:${web.width}/(window.devicePixelRatio||1),height:${web.height}/(window.devicePixelRatio||1)};"
+            web.evaluateJavascript(viewport + script) { result.set(it) }
         }
         val deadline = SystemClock.uptimeMillis() + 5_000
         while (result.get() == null && SystemClock.uptimeMillis() < deadline) SystemClock.sleep(20)
@@ -218,15 +224,15 @@ class ReaderGestureTest {
                               var walker = document.createTreeWalker(flow, NodeFilter.SHOW_TEXT);
                               var node, last;
                               while (node = walker.nextNode()) if (node.data.trim()) last = node;
-                              var end = last.data.trimEnd().length;
+                              var end = last.data.replace(/\s+$/, '').length;
                               var range = document.createRange();
                               range.setStart(last, end - 1); range.setEnd(last, end);
                               var rect = range.getBoundingClientRect();
                               var viewport = flow.getBoundingClientRect();
-                              var visual = window.visualViewport || {offsetLeft:0,offsetTop:0,width:window.innerWidth,height:window.innerHeight};
+                              var visual = window.visualViewport || {offsetLeft:${web.scrollX}/(window.devicePixelRatio||1)+document.documentElement.getBoundingClientRect().left,offsetTop:${web.scrollY}/(window.devicePixelRatio||1)+document.documentElement.getBoundingClientRect().top,width:${web.width}/(window.devicePixelRatio||1),height:${web.height}/(window.devicePixelRatio||1)};
                               return [rect.left - visual.offsetLeft, rect.right - visual.offsetLeft,
                                 rect.top - visual.offsetTop, rect.bottom - visual.offsetTop, viewport.width, viewport.height,
-                                document.documentElement.scrollWidth, Math.ceil(flow.scrollWidth / viewport.width)].join('|');
+                                document.documentElement.scrollWidth, Math.ceil(flow.scrollWidth / viewport.width), $count, $stride, ${web.scrollX}, window.scrollX, window.devicePixelRatio, viewport.left, parseFloat(getComputedStyle(document.documentElement).minWidth), document.documentElement.getBoundingClientRect().left, document.documentElement.getBoundingClientRect().top].join('|');
                             })()
                         """.trimIndent()) { metrics.set(it.trim('"')) }
                     }
@@ -284,7 +290,7 @@ class ReaderGestureTest {
                     }
                     if (mode == "pages") assertEquals("true", javascript(scenario, """
                         (function() {
-                          var visual = window.visualViewport || {offsetLeft:0,offsetTop:0,width:window.innerWidth,height:window.innerHeight};
+                          var visual = window.visualViewport || window.testLegacyViewport;
                           var points = [[25, 52], [visual.offsetLeft + 25, visual.offsetTop + 52]];
                           for (var i = 0; i < points.length; i++) {
                             var caret = document.caretRangeFromPoint(points[i][0], points[i][1]);
@@ -347,7 +353,7 @@ class ReaderGestureTest {
                     val originPage = if (mode == "pages") javascript(scenario, """
                         (function() {
                           var width = document.getElementById('reader-flow').getBoundingClientRect().width;
-                          var scroll = window.scrollX;
+                          var scroll = window.visualViewport ? window.scrollX : -document.documentElement.getBoundingClientRect().left;
                           return Math.floor((window.testTurnOrigin.getBoundingClientRect().left + scroll) / width);
                         })()
                     """.trimIndent()).toInt() else 0
@@ -462,7 +468,7 @@ class ReaderGestureTest {
                         }
                         assertEquals("$mode must start with visible text", "true", javascript(scenario, """
                             (function() {
-                              var visual = window.visualViewport || {offsetLeft:0,offsetTop:0,width:window.innerWidth,height:window.innerHeight};
+                              var visual = window.visualViewport || window.testLegacyViewport;
                               var points = [[${preferences.horizontalMargin + 1}, ${preferences.verticalMargin + 28}],
                                 [visual.offsetLeft + ${preferences.horizontalMargin + 1}, visual.offsetTop + ${preferences.verticalMargin + 28}]];
                               for (var i = 0; i < points.length; i++) {
@@ -491,6 +497,7 @@ class ReaderGestureTest {
                             var beforeScrollY = 0
                             val beforeLocation = IntArray(2)
                             var beforeSystemBarsVisible = false
+                            var beforeUiFlags = 0
                             scenario.onActivity { activity ->
                                 val web = requireNotNull(findWebView(activity.window.decorView))
                                 beforeHeight = web.height
@@ -498,10 +505,13 @@ class ReaderGestureTest {
                                 beforeScrollX = web.scrollX
                                 beforeScrollY = web.scrollY
                                 web.getLocationOnScreen(beforeLocation)
-                                beforeSystemBarsVisible = requireNotNull(androidx.core.view.ViewCompat.getRootWindowInsets(web))
+                                beforeUiFlags = activity.window.decorView.systemUiVisibility
+                                beforeSystemBarsVisible = if (android.os.Build.VERSION.SDK_INT < 30) beforeUiFlags and View.SYSTEM_UI_FLAG_FULLSCREEN == 0
+                                else requireNotNull(androidx.core.view.ViewCompat.getRootWindowInsets(web))
                                     .isVisible(androidx.core.view.WindowInsetsCompat.Type.statusBars())
                             }
-                            val beforeAnchor = javascript(scenario, "window.testTextAnchor.getBoundingClientRect().toJSON()")
+                            val beforeAnchor = javascript(scenario, "(function(){var r=window.testTextAnchor.getBoundingClientRect();return [r.left,r.top,r.right,r.bottom,r.width,r.height];})()")
+                            assertNotEquals("Text anchor must expose real geometry", "null", beforeAnchor)
                             touchReader(scenario)
                             SystemClock.sleep(1100)
                             awaitReaderSettled(scenario)
@@ -514,16 +524,17 @@ class ReaderGestureTest {
                                 val afterLocation = IntArray(2)
                                 web.getLocationOnScreen(afterLocation)
                                 assertArrayEquals("Controls must not move the reading viewport", beforeLocation, afterLocation)
-                                assertNotEquals("A central tap must toggle controls and system bars", beforeSystemBarsVisible,
-                                    requireNotNull(androidx.core.view.ViewCompat.getRootWindowInsets(web))
+                                assertNotEquals("A central tap must toggle controls and system bars: beforeFlags=$beforeUiFlags afterFlags=${activity.window.decorView.systemUiVisibility} hitType=${web.hitTestResult.type}", beforeSystemBarsVisible,
+                                    if (android.os.Build.VERSION.SDK_INT < 30) activity.window.decorView.systemUiVisibility and View.SYSTEM_UI_FLAG_FULLSCREEN == 0
+                                    else requireNotNull(androidx.core.view.ViewCompat.getRootWindowInsets(web))
                                         .isVisible(androidx.core.view.WindowInsetsCompat.Type.statusBars()))
                             }
                             assertEquals("$mode must keep the text in exactly the same place", beforeAnchor,
-                                javascript(scenario, "window.testTextAnchor.getBoundingClientRect().toJSON()"))
+                                javascript(scenario, "(function(){var r=window.testTextAnchor.getBoundingClientRect();return [r.left,r.top,r.right,r.bottom,r.width,r.height];})()"))
                             val metrics = javascript(scenario, """
                                 (function() {
-                                  var visual = window.visualViewport || {offsetLeft:0,offsetTop:0,width:window.innerWidth,height:window.innerHeight};
-                                  var scroll = window.scrollX;
+                                  var visual = window.visualViewport || window.testLegacyViewport;
+                                  var scroll = window.visualViewport ? window.scrollX : -document.documentElement.getBoundingClientRect().left;
                                   var rect = window.testTextAnchor.getBoundingClientRect();
                                   return [rect.left + scroll - visual.pageLeft, rect.right + scroll - visual.pageLeft,
                                     rect.top - visual.offsetTop, rect.bottom - visual.offsetTop,

@@ -109,7 +109,7 @@ class AnnotationUiTest {
             compose.waitUntil(10_000) {
                 onView(isAssignableFrom(WebView::class.java)).check { view, error ->
                     if (error != null) throw error
-                    action.set(view.createAccessibilityNodeInfo().actionList.firstOrNull { it.label == context.getString(R.string.annotate_selection) }?.id)
+                    action.set(view.createAccessibilityNodeInfo()?.actionList?.firstOrNull { it.label == context.getString(R.string.annotate_selection) }?.id)
                 }
                 action.get() != null
             }
@@ -118,10 +118,11 @@ class AnnotationUiTest {
                 assertTrue(view.performAccessibilityAction(action.get(), null))
             }
             compose.waitUntil(10_000) { compose.onAllNodes(hasSetTextAction()).fetchSemanticsNodes().size == 1 }
-            compose.onNodeWithText(context.getString(R.string.annotation_underline)).performClick().assertIsSelected()
-            compose.onNodeWithContentDescription(context.getString(R.string.annotation_purple)).performClick().assertIsSelected()
+            compose.onNodeWithText(context.getString(R.string.annotation_underline)).performScrollTo().performClick().assertIsSelected()
+            compose.onNodeWithContentDescription(context.getString(R.string.annotation_purple)).performScrollTo().performClick().assertIsSelected()
             screenshot("annotation-style-editor.png")
-            compose.onNode(hasSetTextAction()).performTextInput("First note")
+            compose.onNode(hasSetTextAction()).performScrollTo().performTextInput("First note")
+            androidx.test.espresso.Espresso.closeSoftKeyboard()
             compose.onNodeWithText(context.getString(R.string.save_annotation)).performClick()
             compose.waitUntil(10_000) { vm.annotations.value.singleOrNull()?.note == "First note" }
             assertEquals("First note", db.library().annotations(imported.id).first().single().note)
@@ -145,9 +146,10 @@ class AnnotationUiTest {
             compose.onNodeWithContentDescription(context.getString(R.string.edit_annotation)).performClick()
             compose.onNodeWithText(context.getString(R.string.annotation_underline)).assertIsSelected()
             compose.onNodeWithContentDescription(context.getString(R.string.annotation_purple)).assertIsSelected()
-            compose.onNodeWithText(context.getString(R.string.annotation_shade)).performClick()
-            compose.onNodeWithContentDescription(context.getString(R.string.annotation_blue)).performClick()
-            compose.onNode(hasSetTextAction()).performTextReplacement("Edited note")
+            compose.onNodeWithText(context.getString(R.string.annotation_shade)).performScrollTo().performClick()
+            compose.onNodeWithContentDescription(context.getString(R.string.annotation_blue)).performScrollTo().performClick()
+            compose.onNode(hasSetTextAction()).performScrollTo().performTextReplacement("Edited note")
+            androidx.test.espresso.Espresso.closeSoftKeyboard()
             compose.onNodeWithText(context.getString(R.string.save_annotation)).performClick()
             try { compose.waitUntil(10_000) { vm.annotations.value.singleOrNull()?.note == "Edited note" } }
             catch (error: Throwable) { throw AssertionError("Edited annotation did not commit: error=${vm.annotationError.value}, notes=${vm.annotations.value.map { it.note }}, editorNodes=${compose.onAllNodes(hasSetTextAction()).fetchSemanticsNodes().size}", error) }

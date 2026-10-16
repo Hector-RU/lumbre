@@ -55,6 +55,7 @@ import com.hector.epubreader.R
 import com.hector.epubreader.MainActivity
 import com.hector.epubreader.data.preferences.ReaderPreferences
 import com.hector.epubreader.ui.settings.ReaderSettings
+import com.hector.epubreader.ui.stableReaderInsets
 
 private val annotationDraftSaver = listSaver<AnnotationEntity?, Any>(
     save = { a -> a?.let { listOf(it.id, it.bookId, it.chapter, it.resourcePath, it.startOffset, it.endOffset, it.quote, it.note, it.createdAt, it.style, it.color) } ?: emptyList() },
@@ -93,7 +94,7 @@ fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((
     val controlsEasing = CubicBezierEasing(0.32f, 0.72f, 0f, 1f)
     // Keep the reading viewport fixed even when immersive mode hides system bars.
     // Reader controls are drawn over the book instead of resizing its pages.
-    val readerInsets = WindowInsets.systemBarsIgnoringVisibility.union(WindowInsets.displayCutout)
+    val readerInsets = stableReaderInsets()
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val activity = LocalActivity.current
     val lightInterface = MaterialTheme.colorScheme.surface.luminance() > 0.5f

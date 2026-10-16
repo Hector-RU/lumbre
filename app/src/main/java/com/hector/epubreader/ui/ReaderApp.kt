@@ -75,7 +75,7 @@ fun ReaderApp(vm: AppViewModel = viewModel()) {
             }, floatingActionButton = {
                 if (route == "library" && library.books.isNotEmpty() && !library.importing && !library.backupBusy && !library.backupBusy) FloatingActionButton(onClick = add) { Icon(Icons.Outlined.Add, stringResource(R.string.add_book)) }
             }) { insets ->
-            val horizontalInsets = if (reader) WindowInsets.systemBarsIgnoringVisibility.union(WindowInsets.displayCutout) else WindowInsets.safeDrawing
+            val horizontalInsets = if (reader) stableReaderInsets() else WindowInsets.safeDrawing
             NavHost(nav, startDestination = "library", modifier = Modifier.padding(insets).windowInsetsPadding(horizontalInsets.only(WindowInsetsSides.Horizontal))) {
                 listOf("library", "search").forEach { destination -> composable(destination) {
                     LibraryScreen(library, preferences, destination == "search", add, { if (!library.backupBusy) nav.navigate("reader/$it") }, vm::remove, vm::reset, vm::setCollection)

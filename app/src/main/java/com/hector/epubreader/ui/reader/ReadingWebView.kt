@@ -82,7 +82,7 @@ internal class ReadingWebView(context: Context) : WebView(context) {
         if (capturePending) { captureAgain = true; return }
         capturePending = true
         val key = renderKey
-        evaluateJavascript(TextLocatorScripts.capture(horizontalMode())) { value ->
+        evaluateJavascript(TextLocatorScripts.capture(horizontalMode(), scrollX, scrollY, width, height)) { value ->
             capturePending = false
             if (key == renderKey && !restoring && !disposed && !viewportAnimating && resizePosition == null) {
                 lastTextOffset = value?.toIntOrNull()?.takeIf { it >= 0 }
@@ -449,22 +449,29 @@ internal class ReadingWebView(context: Context) : WebView(context) {
     }
     fun measurePagination(done: () -> Unit) {
         if (!horizontalMode()) { done(); return }
+        val key = renderKey
         val viewportHeight = height / resources.displayMetrics.density
         evaluateJavascript("document.documentElement.style.setProperty('--reader-viewport-height', '${viewportHeight}px')") {
-            evaluateJavascript(paginationMetricsScript) { result ->
-                val metrics = result?.removeSurrounding("\"")?.split('|')
-                val count = metrics?.getOrNull(0)?.toIntOrNull()
-                val stride = metrics?.getOrNull(1)?.toFloatOrNull()
-                if (count != null && count > 0 && stride != null && stride.isFinite() && stride > 0f) {
-                    pageCount = count
-                    pageStride = stride
+            // Commit the viewport height before measuring columns, then commit
+            // their scroll range before restoring the native reading position.
+            postVisualStateCallback(0L, object : VisualStateCallback() {
+                override fun onComplete(requestId: Long) {
+                    if (disposed || key != renderKey) return
+                    evaluateJavascript(paginationMetricsScript) { result ->
+                        if (disposed || key != renderKey) return@evaluateJavascript
+                        val metrics = result?.removeSurrounding("\"")?.split('|')
+                        val count = metrics?.getOrNull(0)?.toIntOrNull()
+                        val stride = metrics?.getOrNull(1)?.toFloatOrNull()
+                        if (count != null && count > 0 && stride != null && stride.isFinite() && stride > 0f) {
+                            pageCount = count
+                            pageStride = stride
+                        }
+                        postVisualStateCallback(0L, object : VisualStateCallback() {
+                            override fun onComplete(requestId: Long) { if (!disposed && key == renderKey) done() }
+                        })
+                    }
                 }
-                // JavaScript has measured the new columns, but Android's scroll
-                // range is updated only when Chromium commits that layout.
-                postVisualStateCallback(0L, object : VisualStateCallback() {
-                    override fun onComplete(requestId: Long) { done() }
-                })
-            }
+            })
         }
     }
     fun seek(fraction: Float) {

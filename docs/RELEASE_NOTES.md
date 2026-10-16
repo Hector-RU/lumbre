@@ -21,6 +21,7 @@
 - Backup restores recover from process interruption, support cancellation and display book progress.
 - Repeated search text is cached within a strict process-memory budget; overlapping marks use a sweep.
 - Reader layout readiness checks fonts/images with a bounded Chromium settling fallback.
+- Older Android versions retain the reading viewport when hiding system bars; legacy WebViews use correct visual/layout coordinate conversion for saved positions.
 - Automated CI configuration covers JVM, Lint, builds and release/manual API 26/37 device jobs.
 
 Android: versionName `1.3`, versionCode `4`. Room v5 and backup v4 migrations are non-destructive.

@@ -40,6 +40,12 @@ android {
 
 ksp { arg("room.schemaLocation", "$projectDir/schemas") }
 
+// Optional publisher EPUBs remain outside version control. The original fixture
+// always runs when no external corpus is supplied, including CI.
+tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    inputs.files(rootProject.fileTree("test-artifacts/corpus") { include("*.epub") })
+}
+
 dependencies {
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)

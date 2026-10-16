@@ -60,7 +60,8 @@ jobs:
           arch: x86_64
           target: google_apis
           profile: pixel_2
-          disable-animations: true
+          # Motion regressions verify the real resize snapshot and page-turn animations.
+          disable-animations: false
           script: |
             adb shell getprop ro.build.version.sdk
             adb shell dumpsys webviewupdate

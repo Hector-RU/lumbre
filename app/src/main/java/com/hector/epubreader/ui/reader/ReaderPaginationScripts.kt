@@ -22,7 +22,7 @@ internal fun captureReadingAnchorScript(page: Int) = """
   var flow = document.getElementById('reader-flow') || document.body;
   var bounds = flow.getBoundingClientRect();
   var width = bounds.width;
-  var scroll = window.scrollX;
+  var scroll = window.visualViewport ? window.scrollX : -document.documentElement.getBoundingClientRect().left;
   // Chromium may pan the viewport before notifying Android about its new size.
   // Locate text in the reader's recorded column, including offscreen ranges.
   var column = $page;
@@ -66,7 +66,7 @@ internal val readingAnchorPageScript = """
   range.setStart(anchor.node, offset); range.setEnd(anchor.node, offset + 1);
   var flow = document.getElementById('reader-flow') || document.body;
   var width = flow.getBoundingClientRect().width;
-  var scroll = window.scrollX;
+  var scroll = window.visualViewport ? window.scrollX : -document.documentElement.getBoundingClientRect().left;
   return Math.max(0, Math.floor((range.getBoundingClientRect().left + scroll) / width));
 })()
 """.trimIndent()

@@ -148,3 +148,15 @@ language. It uses canonical UTF-16 chunks, progress callbacks and audio focus. P
 lifecycle stop and navigation, and the engine shuts down with its ViewModel. Engines without range
 callbacks resume from the current chunk. No background service or extra permission is introduced.
 The instrumented test APK contains a silent test engine; production does not package it.
+
+
+Legacy WebView coordinate compatibility is explicit: before Chromium 61, `window.scrollX/Y`
+refer to the visual viewport while DOM rectangles use the layout viewport. Capture derives
+visual bounds from native WebView dimensions/scroll plus the root DOM rectangle; restoration
+and resize anchors use the layout scroll derived from that rectangle. Modern WebViews keep
+the visualViewport path. See [Chromium's viewport explanation](https://developer.chrome.com/blog/visual-viewport-api).
+On Android <30, reader insets retain the observed bar sizes across immersive changes and reset
+on orientation/density changes; this prevents controls from resizing the reading viewport.
+Pagination waits for a visual commit both before measuring columns and before restoring native
+scroll. Explicit turns invalidate older resize callbacks. TTS binds only after the reader opens
+its voice controls; ordinary book opening does not start a speech engine.

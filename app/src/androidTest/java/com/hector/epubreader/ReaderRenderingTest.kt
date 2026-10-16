@@ -135,7 +135,7 @@ class ReaderRenderingTest {
                             if (!node || target < start || target >= start + node.length) continue;
                             var range=document.createRange(); range.setStart(node,target-start); range.setEnd(node,target-start+1);
                             var r=range.getBoundingClientRect();
-                            var v=window.visualViewport, left=v?v.offsetLeft:0, top=v?v.offsetTop:0;
+                            var v=window.visualViewport || {offsetLeft:${view.scrollX}/(window.devicePixelRatio||1)+document.documentElement.getBoundingClientRect().left,offsetTop:${view.scrollY}/(window.devicePixelRatio||1)+document.documentElement.getBoundingClientRect().top,width:${view.width}/(window.devicePixelRatio||1),height:${view.height}/(window.devicePixelRatio||1),pageTop:${view.scrollY}/(window.devicePixelRatio||1)}, left=v.offsetLeft, top=v.offsetTop;
                             return r.right>left && r.left<left+(v?v.width:innerWidth) && r.bottom>top && r.top<top+(v?v.height:innerHeight);
                           }
                           return false;
@@ -227,7 +227,7 @@ class ReaderRenderingTest {
                                 if (!node || target < start || target >= start + node.length) continue;
                                 var range=document.createRange(); range.setStart(node,target-start); range.setEnd(node,target-start+1);
                                 var r=range.getBoundingClientRect();
-                                var v=window.visualViewport, left=v?v.offsetLeft:0, top=v?v.offsetTop:0;
+                                var v=window.visualViewport || {offsetLeft:${view.scrollX}/(window.devicePixelRatio||1)+document.documentElement.getBoundingClientRect().left,offsetTop:${view.scrollY}/(window.devicePixelRatio||1)+document.documentElement.getBoundingClientRect().top,width:${view.width}/(window.devicePixelRatio||1),height:${view.height}/(window.devicePixelRatio||1),pageTop:${view.scrollY}/(window.devicePixelRatio||1)}, left=v.offsetLeft, top=v.offsetTop;
                                     window.testSearchMetrics=[target,r.top,r.bottom,r.left,r.right,window.scrollY,v?v.offsetTop:0,v?v.pageTop:0,v?v.height:innerHeight,document.documentElement.scrollHeight,devicePixelRatio,getComputedStyle(spans[i]).backgroundColor].join('|');
                                     return getComputedStyle(spans[i]).backgroundColor==='rgb(255, 224, 130)' && r.right>left && r.left<left+(v?v.width:innerWidth) && r.bottom>top && r.top<top+(v?v.height:innerHeight);
                               }

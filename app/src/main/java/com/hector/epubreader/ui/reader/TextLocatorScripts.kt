@@ -2,12 +2,17 @@ package com.hector.epubreader.ui.reader
 
 /** Only reader-owned scripts run; publication scripts are removed and blocked by CSP. */
 internal object TextLocatorScripts {
-    fun capture(horizontal: Boolean) = """
+    fun capture(horizontal: Boolean, nativeX: Int, nativeY: Int, nativeWidth: Int, nativeHeight: Int) = """
         (function() {
           var horizontal = $horizontal;
           // Chromium may pan a visual viewport inside a wider layout viewport.
           // DOM Range coordinates are relative to the latter, even at scale 1.
-          var viewport = window.visualViewport;
+          var dpr = window.devicePixelRatio || 1;
+          var viewport = window.visualViewport || {
+            offsetLeft: $nativeX / dpr + document.documentElement.getBoundingClientRect().left,
+            offsetTop: $nativeY / dpr + document.documentElement.getBoundingClientRect().top,
+            width: $nativeWidth / dpr, height: $nativeHeight / dpr
+          };
           var left = viewport ? viewport.offsetLeft : 0;
           var top = viewport ? viewport.offsetTop : 0;
           var right = left + (viewport ? viewport.width : innerWidth);
@@ -50,7 +55,10 @@ internal object TextLocatorScripts {
             var range = document.createRange(); range.setStart(node, local); range.setEnd(node, local + 1);
             var box = range.getBoundingClientRect();
             if (!box.width && !box.height) continue;
-            return Math.max(0, ($horizontal ? box.left + window.scrollX : box.top + window.scrollY) * (window.devicePixelRatio || 1));
+            var root = document.documentElement.getBoundingClientRect();
+            var layoutX = window.visualViewport ? window.scrollX : -root.left;
+            var layoutY = window.visualViewport ? window.scrollY : -root.top;
+            return Math.max(0, ($horizontal ? box.left + layoutX : box.top + layoutY) * (window.devicePixelRatio || 1));
           }
           return -1;
         })()

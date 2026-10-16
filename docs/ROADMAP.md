@@ -1,6 +1,6 @@
 # Lumbre roadmap
 
-Updated: 15 October 2026 (America/Santo_Domingo).
+Updated: 16 October 2026 (America/Santo_Domingo).
 
 ## Included in Lumbre 1.2
 
@@ -49,8 +49,8 @@ The user's successful manual acceptance above remains recorded.
   The annotation list separates the quote and note, labels the chapter/style/color and expands
   long content. Selections and notes are limited to 10,000
   UTF-16 code units each; graphic-only SVG/MathML text is outside the canonical text index.
-- The signed candidate and update from 1.2 are verified. Manual acceptance on representative
-  books/devices and publication remain pending. The published 1.2 APK remains available.
+- Release 1.3 and its signed update from 1.2 are verified. Manual acceptance on representative
+  books/devices remains pending. The published 1.2 APK remains available.
 
 ## Following iterations
 
@@ -97,6 +97,6 @@ The user's successful manual acceptance above remains recorded.
 The API 26 matrix passed all 33 tests, and the existing release key signs the 1.3 candidate.
 The publisher corpus checks 62 chapters across all three HTML rendering modes.
 Remaining delivery gates: physical-device/TalkBack, audible TTS and real-publication visual
-acceptance, cloud SAF providers, remote CI execution and publication. See COMPATIBILITY.md
+acceptance and cloud SAF providers. Remote CI status is available in GitHub Actions. See COMPATIBILITY.md
 and VERIFICATION.md for final device results and signed-update evidence.
 Synchronization and wider EPUB engine/CFI support remain separate future product decisions.

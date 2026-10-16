@@ -1,6 +1,6 @@
 # Lumbre release notes
 
-## 1.3 — release candidate (not published)
+## 1.3 — 16 October 2026
 
 - Reflowable EPUBs may use standard IDPF-obfuscated publisher fonts. Resources are decoded on
   demand; DRM and unknown obfuscation algorithms remain unsupported.
@@ -25,9 +25,10 @@
 - Automated CI configuration covers JVM, Lint, builds and release/manual API 26/37 device jobs.
 
 Android: versionName `1.3`, versionCode `4`. Room v5 and backup v4 migrations are non-destructive.
-The candidate is signed with the 1.2 certificate and its signed update is verified; it is not published.
-Physical-device, TalkBack and broad
-publisher EPUB acceptance remain explicit delivery gates.
+The APK is signed with the 1.2 certificate and its signed update is verified.
+Validation: 42 JVM tests, 33 Android tests on each of API 26 and API 37, and Lint with
+0 errors / 21 warnings per variant. Physical-device, TalkBack, audible TTS and broad
+publisher EPUB acceptance remain documented validation limits.
 
 ## 1.2 — 15 October 2026
 

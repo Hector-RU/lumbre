@@ -1,10 +1,11 @@
 # Lumbre
 
-Current published release: **1.2** (Android versionCode `3`). See [release notes](docs/RELEASE_NOTES.md).
+Current published release: **[1.3](https://github.com/Hector-RU/lumbre/releases/tag/v1.3)**
+(Android versionCode `4`). See [release notes](docs/RELEASE_NOTES.md).
 
-The working tree prepares **1.3** (versionCode `4`): IDPF fonts, configurable annotations,
+Version **1.3** includes IDPF fonts, configurable annotations,
 collections, annotation export, foreground offline TTS, Room v5 and recoverable backup v4
-(restoring v1/v2/v3 as well). This candidate is not yet published.
+(restoring v1/v2/v3 as well).
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
@@ -134,13 +135,13 @@ Readium was evaluated as a possible engine evolution but is not added as a depen
 See [ROADMAP.md](docs/ROADMAP.md) for completed work, priorities and release gates.
 
 
-## 1.3 candidate validation
+## 1.3 validation
 
 See [COMPATIBILITY.md](docs/COMPATIBILITY.md) for the device/publication acceptance matrix,
 [VERIFICATION.md](docs/VERIFICATION.md) for actual results and [.github/workflows/android.yml](.github/workflows/android.yml)
 for CI. TTS pauses when leaving the reader and requires an installed offline voice for the book
 language. It is not a background playback service. Each book can belong to one named collection.
 
-Signed candidate: `app/build/outputs/release-v1.3/lumbre-1.3.apk`. Its certificate matches 1.2;
+Signed release: `app/build/outputs/release-v1.3/lumbre-1.3.apk`. Its certificate matches 1.2;
 the signed upgrade preserves reading data. Packaging checksums and provenance sit beside the APK.
-This candidate has not been published.
+Download the APK and checksum from the [1.3 release](https://github.com/Hector-RU/lumbre/releases/tag/v1.3).

@@ -213,24 +213,41 @@ class ReaderRenderingTest {
             assertEquals(hit.textOffset, observed.get())
             assertTrue(observed.get()!! > hits.first().textOffset)
             val visibleTarget = AtomicReference<String>()
-            onView(isAssignableFrom(WebView::class.java)).check { view, error ->
-                if (error != null) throw error
-                (view as WebView).evaluateJavascript("""
-                    (function() {
-                      var target = ${hit.textOffset}, spans = document.querySelectorAll('[data-reader-offset]');
-                      for (var i=0;i<spans.length;i++) {
-                        var node=spans[i].firstChild, start=Number(spans[i].getAttribute('data-reader-offset'));
-                        if (!node || target < start || target >= start + node.length) continue;
-                        var range=document.createRange(); range.setStart(node,target-start); range.setEnd(node,target-start+1);
-                        var r=range.getBoundingClientRect();
-                        var v=window.visualViewport, left=v?v.offsetLeft:0, top=v?v.offsetTop:0;
-                            return r.right>left && r.left<left+(v?v.width:innerWidth) && r.bottom>top && r.top<top+(v?v.height:innerHeight);
-                      }
-                      return false;
-                    })()
-                """) { visibleTarget.set(it) }
+            // Native scrollTo can precede Chromium's committed visual viewport. Wait
+            // for the selected character to be visible, not just for the first JS reply.
+            try {
+                compose.waitUntil(5000) {
+                    onView(isAssignableFrom(WebView::class.java)).check { view, error ->
+                        if (error != null) throw error
+                        (view as WebView).evaluateJavascript("""
+                            (function() {
+                              var target = ${hit.textOffset}, spans = document.querySelectorAll('[data-reader-offset]');
+                              for (var i=0;i<spans.length;i++) {
+                                var node=spans[i].firstChild, start=Number(spans[i].getAttribute('data-reader-offset'));
+                                if (!node || target < start || target >= start + node.length) continue;
+                                var range=document.createRange(); range.setStart(node,target-start); range.setEnd(node,target-start+1);
+                                var r=range.getBoundingClientRect();
+                                var v=window.visualViewport, left=v?v.offsetLeft:0, top=v?v.offsetTop:0;
+                                    window.testSearchMetrics=[target,r.top,r.bottom,r.left,r.right,window.scrollY,v?v.offsetTop:0,v?v.pageTop:0,v?v.height:innerHeight,document.documentElement.scrollHeight,devicePixelRatio,getComputedStyle(spans[i]).backgroundColor].join('|');
+                                    return getComputedStyle(spans[i]).backgroundColor==='rgb(255, 224, 130)' && r.right>left && r.left<left+(v?v.width:innerWidth) && r.bottom>top && r.top<top+(v?v.height:innerHeight);
+                              }
+                              return false;
+                            })()
+                        """) { visibleTarget.set(it) }
+                    }
+                    visibleTarget.get() == "true"
+                }
+            } catch (failure: androidx.compose.ui.test.ComposeTimeoutException) {
+                val metrics = AtomicReference<String>()
+                onView(isAssignableFrom(WebView::class.java)).check { view, error ->
+                    if (error != null) throw error
+                    val web = view as WebView
+                    web.evaluateJavascript("window.testSearchMetrics") { metrics.set(it) }
+                    android.util.Log.i("ReaderSearchMetrics", "native=${web.scrollY}, height=${web.height}, content=${web.contentHeight}")
+                }
+                compose.waitUntil(5000) { metrics.get() != null }
+                throw AssertionError("Selected match not visible: ${metrics.get()}", failure)
             }
-            compose.waitUntil(5000) { visibleTarget.get() != null }
             assertEquals("Selected search match must be on screen, including near the chapter end", "true", visibleTarget.get())
         } finally {
             compose.runOnIdle { visible.value = false }; compose.waitForIdle()

@@ -247,3 +247,153 @@ remain visible; no dependency migration or Lint suppression was introduced for t
 Local logs: `test-artifacts/release-1.2-verification.log` contains the build/JVM/Lint run and initial
 Android failures; `release-1.2-android-final.log` records the final complete passing Android run.
 Manual acceptance remains as reported in the preceding entry.
+
+
+## 15 October 2026 — fonts and annotations (unreleased)
+
+The next iteration adds standard IDPF font obfuscation, persistent highlights/notes, Room v3
+and portable backup v2. It does not modify the signed 1.2 distribution or claim manual acceptance
+for these new features. The application version remains unchanged pending the next release.
+
+New automated coverage:
+
+- The font decoder uses an independent SHA-1 test vector, mixed single/bulk reads, skip across
+  the 1040-byte boundary, short fonts and unchanged font tails. Parser tests select the package's
+  referenced identifier, strip XML whitespace and reject DRM/non-font obfuscation.
+- A real WebView loads a device font that the test obfuscates and embeds in a temporary EPUB.
+  The font's FontFace status reaches loaded with network loads disabled. No system font file is
+  redistributed in the repository.
+- Overlapping highlights preserve canonical text/offsets across inline markup and all reading modes.
+  Native ActionMode selection yields the expected UTF-16 range; saved highlights remain visible
+  after recreation, larger type and changes between scroll/pages/paragraphs.
+- A real long press in page mode opens the native reader action, followed by the Compose editor.
+  The UI test saves, edits and deletes a note and checks the resulting repository state.
+  Android 17's floating toolbar is rendered in a remote SurfaceView. Coordinate-based toolbar
+  tapping proved unstable in the initial full run. The final test uses a real long press and
+  invokes the selected-text accessibility action, then waits for the asynchronous editor.
+  The native ActionMode menu callback is covered separately by AnnotationReaderTest.
+- Room migrations from v1 and directly from v2 retain books, bookmarks and progress, then allow
+  annotations to be written. Deleting a book cascades to its annotations.
+- Backup v2 round-trips quotes, ranges and Unicode notes. Restoring a duplicate keeps later edits.
+  Overflowing ranges are rejected before importing any books. A converted v1 archive restores
+  progress without requiring an annotations array. Unsafe ZIP paths remain rejected.
+
+Environment: Pixel 8 AVD, Android 17/API 37, WebView 149.0.7827.5. Accessibility was already
+inactive at the start of this iteration's tests; its initial state was saved locally. The final
+run uses that state. Manual review with TalkBack, older Android/WebView versions and a wider
+publication corpus remains pending for these additions; the prior 1.2 acceptance is historical.
+
+JVM coverage: 34 passing tests. Debug/release builds succeed. Lint reports 0 errors and
+21 warnings per variant: the prior 20 notices plus AlwaysShowAction for the reader's primary
+selection action. This keeps highlighting directly available alongside native text actions;
+no Lint check or test was suppressed. The final complete Android result is recorded below.
+
+Logs: ignored `test-artifacts/annotations-final-verification.log` (full checks),
+`annotations-ui.log` (native selection/editor flow) and the standard Gradle HTML/XML reports.
+
+
+Final complete run: **passed**, 4 minutes 13 seconds, with no tests skipped.
+
+| Check | Result |
+| --- | --- |
+| JVM `testDebugUnitTest` | 34 passed, 0 failed |
+| Android `connectedDebugAndroidTest` | 23 passed, 0 failed, 0 skipped |
+| Debug / release Lint | 0 errors, 21 warnings per variant |
+| Debug / release builds | Passed |
+
+Command: `./gradlew testDebugUnitTest lintDebug lintRelease assembleDebug assembleRelease connectedDebugAndroidTest`
+(using `gradlew.bat` and the configured Android Studio JDK on Windows).
+The earlier full-run toolbar-coordinate failure is retained in the ignored
+`test-artifacts/annotations-initial-full.log`; the final log above supersedes that result.
+All original assertions remain enabled. New features still need manual corpus/TalkBack acceptance
+before a new signed release is prepared.
+
+
+## 15 October 2026 — annotation appearance (unreleased)
+
+Room v4 adds explicit style/color defaults for existing annotations. Backup v3 includes those
+fields, validates their IDs and restores v1/v2 archives with the original appearance. The editor
+provides shading, underline or both, five named colors, selection semantics and a live passage
+preview. Annotation cards separate the passage and note, identify chapter/style/color, expand
+long text and retain edit/delete/navigation actions. Underline-only marks preserve the reader's
+text color; shaded marks use a contrasting ink/background pair. A line drawn over a shaded
+background uses a darker color in either reading theme.
+
+New verification:
+
+- JVM rendering coverage exercises all 90 combinations of three reading modes, two theme types,
+  three styles and five colors. Text offsets and original content remain unchanged. A separate
+  overlap regression checks independent blue shading and red underlining.
+- Migration coverage now starts at schemas 1, 2 and 3. Version 3's existing annotation retains its
+  note and receives combined/yellow defaults during migration to v4.
+- Backup v3 preserves selected styles/colors. An invalid CSS-like color ID is rejected before
+  library changes. Converted v2 annotations receive the original combined/yellow appearance;
+  converted v1 archives still restore without annotations.
+- UI coverage selects purple underlining, saves/reopens it, changes it to blue shading, checks
+  computed WebView styles, then deletes the annotation. A separate editor test uses 200% font
+  scale and a dark reading palette, chooses combined green marks, enters a note and saves with
+  the keyboard visible. Color choices expose radio selection states and names.
+- Emulated screenshots were inspected for the compact editor, color controls and large-text
+  preview. The preview's underline is painted above its background to remain visible in combined
+  mode. Cards use a visible border and plural-aware counts; controls wrap/scroll when space shrinks.
+
+Environment: Pixel 8 AVD / Android 17 API 37 / WebView 149.0.7827.5. Initial accessibility remains
+inactive; no physical-device or manual TalkBack acceptance is inferred. Screenshots and logs are
+under ignored `test-artifacts/annotation-style-*`. The complete final result is recorded below.
+
+
+The first combined run attached Android's UiAutomation accessibility service while taking
+screenshots in the new UI test (`accessibility_enabled` became 1 with no external service).
+Three existing resize/controls/search assertions failed in that altered environment. Screenshot
+capture is now explicitly opt-in (`annotationScreenshots=true`) for a separate visual-only run;
+normal regression tests do not initialize UiAutomation. The original inactive accessibility state
+is retained and checked during the final regression run. No assertion or test was disabled.
+A Spanish plural quantity notice found during Lint was corrected with an explicit `many` form.
+
+Build/JVM/Lint log: `test-artifacts/annotation-style-packaging.log`.
+Final Android log: `test-artifacts/annotation-style-android-final.log`.
+Visual-only log: `test-artifacts/annotation-style-visual-final.log`.
+
+
+Further isolation showed that native find could pan back to its first match even after
+visual-state callbacks: the selected locator was correct but the viewport had returned near
+the start. The selected occurrence is now rendered as a temporary reader-owned yellow shade;
+native find is no longer involved. A visual-state callback commits the restored viewport before
+readiness. The search test checks both the original visibility/offset conditions and the actual
+mark color, within the existing 5-second bound, with geometry diagnostics on failure.
+
+Synthetic reader taps/swipes now deliver their intended 40/80 ms timestamps in one UI-thread
+turn; separate host round trips could otherwise stretch a simulated short tap into a long press.
+All original controls, snapshot, position and navigation assertions remain enabled.
+
+The final native instrumentation run is kept separate from compilation/Lint. The Gradle daemon
+is stopped first to release build memory (less than 1 GiB was initially free on this host).
+`annotation-style-android-final-native.log` is the final Android log; earlier Gradle-generated
+Android reports retain their earlier attempt results and should not be read as the final run.
+
+
+Final verification of annotation appearance:
+
+| Check | Result |
+| --- | --- |
+| JVM `testDebugUnitTest` | 36 passed, 0 failed |
+| Native AndroidJUnitRunner, complete suite | 25 passed, 0 failed, 0 skipped (465.423 seconds) |
+| Debug / release Lint | 0 errors, 21 existing warnings per variant |
+| Debug / release builds | Passed |
+
+The final Android run used the APKs produced by the successful packaging/JVM/Lint pass, with
+the Gradle daemon stopped and screenshot capture disabled. This final full passing run supersedes
+the earlier failed attempts; the earlier generated AGP Android HTML/XML reports are historical.
+Machine-readable summary: ignored `test-artifacts/annotation-style-validation.json`.
+Visual captures run separately with `-e annotationScreenshots true` and an explicit UI test method;
+that opt-in run does not change the APK or the regression assertions. These features remain
+unreleased, with manual physical-device/TalkBack acceptance pending.
+
+
+The separate opt-in visual run also passed its editor/create/edit/delete test (1 passed,
+56.234 seconds). Final captures were pulled and inspected: the compact editor and bordered
+annotation card show the selected style/color, plural-correct count, distinct passage/note and
+navigation/edit/delete actions; the reader behind the card reflects the saved blue shading.
+The emulator's original inactive accessibility setting and empty enabled-services value were
+restored after capture. PNGs remain in ignored `test-artifacts/annotation-style-editor.png`,
+`annotation-style-list.png` and the earlier large-text capture.

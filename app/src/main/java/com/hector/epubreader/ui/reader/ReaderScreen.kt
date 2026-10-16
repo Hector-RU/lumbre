@@ -1,5 +1,7 @@
 package com.hector.epubreader.ui.reader
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.AnimatedVisibility
@@ -27,6 +29,7 @@ import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -45,18 +48,39 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.hector.epubreader.data.local.AnnotationEntity
+import kotlinx.coroutines.launch
 import com.hector.epubreader.R
 import com.hector.epubreader.MainActivity
 import com.hector.epubreader.data.preferences.ReaderPreferences
 import com.hector.epubreader.ui.settings.ReaderSettings
 
+private val annotationDraftSaver = listSaver<AnnotationEntity?, Any>(
+    save = { a -> a?.let { listOf(it.id, it.bookId, it.chapter, it.resourcePath, it.startOffset, it.endOffset, it.quote, it.note, it.createdAt, it.style, it.color) } ?: emptyList() },
+    restore = { a -> if (a.isEmpty()) null else AnnotationEntity(a[0] as String, a[1] as String, a[2] as Int, a[3] as String, a[4] as Int, a[5] as Int, a[6] as String, a[7] as String, a[8] as Long, a.getOrNull(9) as? String ?: "both", a.getOrNull(10) as? String ?: "yellow") }
+)
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((ReaderPreferences) -> ReaderPreferences) -> Unit, back: () -> Unit, settings: () -> Unit) {
+    val speech by vm.speechState.collectAsStateWithLifecycle()
+    val exporting by vm.exportingAnnotations.collectAsStateWithLifecycle()
+    val exportMessage by vm.exportMessage.collectAsStateWithLifecycle()
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/markdown")) { uri -> uri?.let(vm::exportAnnotations) }
+    val snackbar = remember { SnackbarHostState() }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(exportMessage) { exportMessage?.let { snackbar.showSnackbar(context.getString(it)); vm.exportMessage.value = null } }
     val state by vm.state.collectAsStateWithLifecycle()
     val position by vm.position.collectAsStateWithLifecycle()
     val bookmarks by vm.bookmarks.collectAsStateWithLifecycle()
     val search by vm.search.collectAsStateWithLifecycle()
+    val annotations by vm.annotations.collectAsStateWithLifecycle()
+    val annotationError by vm.annotationError.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+    var editing by rememberSaveable(stateSaver = annotationDraftSaver) { mutableStateOf<AnnotationEntity?>(null) }
+    var note by rememberSaveable { mutableStateOf("") }
+    var saving by remember { mutableStateOf(false) }
+    var selectionError by remember { mutableStateOf(false) }
     var controls by rememberSaveable { mutableStateOf(true) }
     var sheet by rememberSaveable { mutableStateOf<String?>(null) }
     var menu by remember { mutableStateOf(false) }
@@ -78,9 +102,9 @@ fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((
         onDispose { host?.onReaderVolumeKey = null }
     }
     DisposableEffect(lifecycle, vm) {
-        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_STOP) vm.flush() }
+        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_STOP) { vm.pauseSpeech(); vm.flush() } }
         lifecycle.addObserver(observer)
-        onDispose { lifecycle.removeObserver(observer); vm.flush() }
+        onDispose { lifecycle.removeObserver(observer); vm.pauseSpeech(); vm.flush() }
     }
     LaunchedEffect(controls, sheet, activity, preferences.palette, lightInterface) {
         if (activity == null) return@LaunchedEffect
@@ -113,8 +137,16 @@ fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((
                 onNextChapter = { if (state.location.chapter < book.publication.chapters.lastIndex) vm.navigate(state.location.chapter + 1) }, turnRequest = turnRequest,
                 onPreviousChapter = { if (state.location.chapter > 0) vm.navigate(state.location.chapter - 1, 1f) },
                 seekRequest = seekRequest,
-                onChapterPull = { chapterPull = it }, onTextPosition = vm::textPositionChanged, currentTextOffset = vm::currentTextOffset, onResourceLink = vm::openResource)
+                onChapterPull = { chapterPull = it }, onTextPosition = vm::textPositionChanged, currentTextOffset = vm::currentTextOffset, onResourceLink = vm::openResource, annotations = annotations,
+                onSelection = { start, end -> scope.launch {
+                    try {
+                        val annotation = vm.createAnnotation(start, end)
+                        if (annotation != null) { editing = annotation; note = ""; vm.annotationError.value = false } else selectionError = true
+                    } catch (error: kotlinx.coroutines.CancellationException) { throw error }
+                    catch (_: Exception) { selectionError = true }
+                } })
         }
+        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding())
         val loadingLabel = stringResource(R.string.loading)
         if (state.loading) CircularProgressIndicator(Modifier.align(Alignment.Center).semantics { contentDescription = loadingLabel })
         if (state.error) Surface(Modifier.fillMaxSize()) {
@@ -156,6 +188,10 @@ fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((
                 }, actions = {
                     IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, stringResource(R.string.more_options)) }
                     DropdownMenu(menu, { menu = false }) {
+                        DropdownMenuItem(text = { Text(stringResource(R.string.read_aloud)) }, onClick = { menu = false; sheet = "speech" })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.export_annotations)) }, enabled = annotations.isNotEmpty() && !exporting,
+                            onClick = { menu = false; exportLauncher.launch("lumbre-notes.md") })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.annotations)) }, onClick = { menu = false; sheet = "annotations" })
                         DropdownMenuItem(text = { Text(stringResource(R.string.bookmarks)) }, onClick = { menu = false; sheet = "bookmarks" })
                         DropdownMenuItem(text = { Text(stringResource(R.string.settings)) }, onClick = { menu = false; vm.flush(); settings() })
                     }
@@ -204,12 +240,26 @@ fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((
             }
         }
     }
-    if (sheet != null && book != null) ModalBottomSheet(
+    if (sheet != null && book != null && editing == null) ModalBottomSheet(
         onDismissRequest = { sheet = null },
         modifier = Modifier.windowInsetsPadding(readerInsets.only(WindowInsetsSides.Top)),
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ) {
         when (sheet) {
+            "speech" -> Column(Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text(stringResource(R.string.read_aloud), style = MaterialTheme.typography.headlineSmall)
+                Text(stringResource(R.string.speech_description))
+                if (!speech.ready && !speech.error) LinearProgressIndicator(Modifier.fillMaxWidth())
+                if (speech.error) Text(stringResource(R.string.speech_error), color = MaterialTheme.colorScheme.error)
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(onClick = { if (speech.playing) vm.pauseSpeech() else vm.playSpeech() }, enabled = speech.ready) {
+                        Text(stringResource(if (speech.playing) R.string.speech_pause else R.string.speech_play))
+                    }
+                }
+                Text(stringResource(R.string.speech_rate, speech.rate))
+                Slider(speech.rate, vm::speechRate, valueRange = 0.5f..2f,
+                    modifier = Modifier.semantics { contentDescription = context.getString(R.string.speech_rate_label) })
+            }
             "appearance" -> Column(Modifier.verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
                 ReaderSettings(preferences, change, compact = true)
                 TextButton(onClick = { sheet = null; vm.flush(); settings() }, Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.all_settings)) }
@@ -219,6 +269,12 @@ fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((
                     vm.navigate(chapter, fragment = fragment)
                     sheet = null
                 }
+            }
+            "annotations" -> {
+                AnnotationList(annotations, preferences, annotationError,
+                    open = { annotation -> vm.navigate(annotation.chapter, textOffset = annotation.startOffset, resourcePath = annotation.resourcePath); sheet = null },
+                    edit = { annotation -> editing = annotation; note = annotation.note; vm.annotationError.value = false },
+                    delete = vm::removeAnnotation)
             }
             "bookmarks" -> {
                 SheetTitle(stringResource(R.string.bookmarks))
@@ -248,6 +304,15 @@ fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((
         }
         Spacer(Modifier.height(24.dp))
     }
+    editing?.let { annotation ->
+        AnnotationEditor(annotation.copy(note = note), preferences, saving, annotationError,
+            change = { editing = it; note = it.note }, dismiss = { editing = null }, save = {
+                saving = true
+                val job = vm.saveAnnotation(annotation.copy(note = note)) { editing = null }
+                scope.launch { job.join(); saving = false }
+            })
+    }
+    if (selectionError) AlertDialog(onDismissRequest = { selectionError = false }, title = { Text(stringResource(R.string.annotations)) }, text = { Text(stringResource(R.string.annotation_selection_error)) }, confirmButton = { TextButton(onClick = { selectionError = false }) { Text(stringResource(android.R.string.ok)) } })
 }
 
 @Composable

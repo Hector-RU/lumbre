@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="filter_all">Todos</string>
+    <string name="filter_unread">Sin empezar</string>
+    <string name="filter_reading">En lectura</string>
+    <string name="filter_finished">Terminados</string>
+    <string name="all_collections">Todas las colecciones</string>
+    <string name="collection">Colección</string>
+    <string name="collection_name">Nombre de la colección</string>
+    <string name="collection_hint">Escribe un nombre o elige uno existente. Déjalo vacío para quitar el libro de su colección.</string>
+    <string name="collection_save">Guardar</string>
+    <string name="read_aloud">Leer en voz alta</string>
+    <string name="speech_play">Reproducir</string>
+    <string name="speech_pause">Pausar</string>
+    <string name="speech_description">Lee desde tu posición con una voz instalada sin conexión. La lectura se pausa al salir de la pantalla o al perder el audio.</string>
+    <string name="speech_error">No se pudo iniciar la lectura. Comprueba que tienes un motor y una voz sin conexión para el idioma del libro.</string>
+    <string name="speech_rate">Velocidad: %1$.1f×</string>
+    <string name="speech_rate_label">Velocidad de lectura</string>
+    <string name="export_annotations">Exportar notas y resaltados</string>
+    <string name="annotations_exported">Notas y resaltados exportados.</string>
+    <string name="annotation_export_error">No se pudieron exportar las anotaciones. Comprueba el destino y el espacio disponible.</string>
+</resources>

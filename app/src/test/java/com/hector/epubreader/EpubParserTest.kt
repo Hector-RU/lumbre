@@ -25,6 +25,20 @@ class EpubParserTest {
         return temporary.newFile().apply { ZipOutputStream(outputStream()).use { zip -> entries.forEach { (name, content) -> zip.putNextEntry(ZipEntry(name)); zip.write(content.toByteArray()); zip.closeEntry() } } }
     }
 
+    private fun obfuscatedFont(algorithm: String = "http://www.idpf.org/2008/embedding", mediaType: String = "font/otf", identifier: String = "abc"): File {
+        val opf = """<package unique-identifier="uid"><metadata><identifier id="other">wrong</identifier><identifier id="uid">$identifier</identifier></metadata><manifest><item id="c" href="text/uno.xhtml" media-type="application/xhtml+xml"/><item id="f" href="font.otf" media-type="$mediaType"/></manifest><spine><itemref idref="c"/></spine></package>"""
+        val encryption = """<encryption><enc:EncryptedData><enc:EncryptionMethod Algorithm="$algorithm"/><enc:CipherData><enc:CipherReference URI="OEBPS/font.otf"/></enc:CipherData></enc:EncryptedData></encryption>"""
+        return epub(mapOf("OEBPS/book.opf" to opf, "META-INF/encryption.xml" to encryption, "OEBPS/font.otf" to "font"))
+    }
+    @Test fun acceptsIdpfFontsAndUsesTheReferencedIdentifier() {
+        val book = parser.parse(obfuscatedFont(identifier = " a&#x9;b&#xA;c "), "book")
+        assertEquals(0xa9, book.obfuscatedFonts.getValue("OEBPS/font.otf").decode(byteArrayOf(0).inputStream()).read())
+    }
+    @Test fun stillRejectsDrmAndObfuscationOfNonFontResources() {
+        assertThrows(UnsupportedEpub::class.java) { parser.parse(obfuscatedFont(algorithm = "http://www.w3.org/2001/04/xmlenc#aes128-cbc"), "book") }
+        assertThrows(UnsupportedEpub::class.java) { parser.parse(obfuscatedFont(mediaType = "application/xhtml+xml"), "book") }
+        assertThrows(InvalidEpub::class.java) { parser.parse(obfuscatedFont(identifier = "  "), "book") }
+    }
     @Test fun readsMetadataSpineNavAndCover() {
         val book = parser.parse(epub(), "fallback")
         assertEquals("La luz & el mar", book.title)

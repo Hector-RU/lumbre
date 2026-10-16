@@ -39,7 +39,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 @Composable
-fun SettingsScreen(preferences: ReaderPreferences, change: ((ReaderPreferences) -> ReaderPreferences) -> Unit, clearHistory: () -> Unit, exportBackup: () -> Unit = {}, restoreBackup: () -> Unit = {}, backupBusy: Boolean = false) {
+fun SettingsScreen(preferences: ReaderPreferences, change: ((ReaderPreferences) -> ReaderPreferences) -> Unit, clearHistory: () -> Unit, exportBackup: () -> Unit = {}, restoreBackup: () -> Unit = {}, backupBusy: Boolean = false, backupCompleted: Int = 0, backupTotal: Int = 0, cancelBackup: () -> Unit = {}) {
     var confirmHistory by remember { mutableStateOf(false) }
     var licenses by remember { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
@@ -82,7 +82,11 @@ fun SettingsScreen(preferences: ReaderPreferences, change: ((ReaderPreferences) 
             SettingsGroup(stringResource(R.string.data), Icons.Outlined.History) {
                 PreferenceRow(stringResource(R.string.clear_history), onClick = { confirmHistory = true })
                 Text(stringResource(R.string.backup_description), Modifier.padding(horizontal = 24.dp, vertical = 8.dp), style = MaterialTheme.typography.bodySmall)
-                if (backupBusy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(24.dp).semantics { contentDescription = context.getString(R.string.backup_working) })
+                if (backupBusy) Column(Modifier.padding(24.dp)) {
+                    LinearProgressIndicator(Modifier.fillMaxWidth().semantics { contentDescription = context.getString(R.string.backup_working) })
+                    Text(stringResource(R.string.backup_progress, backupCompleted, backupTotal))
+                    TextButton(onClick = cancelBackup) { Text(stringResource(R.string.cancel)) }
+                }
                 else {
                     PreferenceRow(stringResource(R.string.export_backup), onClick = exportBackup)
                     PreferenceRow(stringResource(R.string.restore_backup), onClick = restoreBackup)

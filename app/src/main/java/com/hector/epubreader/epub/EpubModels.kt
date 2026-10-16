@@ -11,7 +11,8 @@ data class EpubPublication(
     val coverPath: String?,
     val chapters: List<EpubChapter>,
     val contents: List<TocEntry>,
-    val resources: Map<String, EpubResource>
+    val resources: Map<String, EpubResource>,
+    val obfuscatedFonts: Map<String, FontObfuscation> = emptyMap()
 )
 
 class InvalidEpub(message: String, cause: Throwable? = null) : java.io.IOException(message, cause)

@@ -19,7 +19,9 @@ class BookWebViewClient(
     private val onLink: (Int, String?) -> Unit,
     private val onReady: (WebView) -> Unit,
     private val onError: () -> Unit,
-    private val onResourceLink: (String, String?) -> Unit = { _, _ -> }
+    private val onResourceLink: (String, String?) -> Unit = { _, _ -> },
+    private val highlights: Map<String, List<EpubContent.Highlight>> = emptyMap(),
+    private val searchQuery: String? = null, private val searchOffset: Int? = null
 ) : WebViewClient() {
     val host = "book-${book.record.id}.invalid"
     fun url(path: String, fragment: String? = null): String = Uri.Builder().scheme("https").authority(host).path("/$path").fragment(fragment).build().toString()
@@ -46,7 +48,14 @@ class BookWebViewClient(
         val resource = book.publication.resources[path] ?: return blocked()
         return try {
             if (resource.mediaType in setOf("application/xhtml+xml", "text/html")) {
-                val content = EpubContent.render(EpubParser().readResource(book.file, path), preferences, fontScale, colors)
+                val bytes = EpubParser().readResource(book.file, path)
+                val marks = highlights[path].orEmpty().toMutableList()
+                if (searchQuery != null && searchOffset != null) {
+                    EpubText.matches(EpubText.text(bytes), searchQuery).firstOrNull { it.first == searchOffset }?.let {
+                        marks += EpubContent.Highlight(it.first, it.last + 1, "shade", "yellow")
+                    }
+                }
+                val content = EpubContent.render(bytes, preferences, fontScale, colors, marks)
                 WebResourceResponse("text/html", "UTF-8", 200, "OK", headers(), ByteArrayInputStream(content.toByteArray()))
             } else {
                 if (!(resource.mediaType.startsWith("image/") || resource.mediaType.startsWith("font/") || resource.mediaType in setOf("text/css", "application/vnd.ms-opentype", "application/font-sfnt", "application/font-woff", "application/x-font-ttf", "application/x-font-opentype"))) return blocked()
@@ -55,7 +64,7 @@ class BookWebViewClient(
                     val entry = zip.getEntry(path) ?: run { zip.close(); return blocked() }
                     val limit = if (resource.mediaType == "text/css") 2L * 1024 * 1024 else 32L * 1024 * 1024
                     if (entry.size > limit) { zip.close(); return blocked() }
-                    val stream = object : FilterInputStream(BoundedInputStream(zip.getInputStream(entry), limit)) {
+                    val stream = object : FilterInputStream(BoundedInputStream(zip.getInputStream(entry), limit).let { book.publication.obfuscatedFonts[path]?.decode(it) ?: it }) {
                         override fun close() { try { super.close() } finally { zip.close() } }
                     }
                     WebResourceResponse(resource.mediaType, if (resource.mediaType == "text/css") "UTF-8" else null, 200, "OK", headers(), stream)

@@ -1,5 +1,32 @@
 # Lumbre release notes
 
+## 1.3 — release candidate (not published)
+
+- Reflowable EPUBs may use standard IDPF-obfuscated publisher fonts. Resources are decoded on
+  demand; DRM and unknown obfuscation algorithms remain unsupported.
+- Long press text in any reading mode and choose **Highlight and annotate** to save a passage
+  with an optional note. **Highlights and notes** in the reader menu opens, edits and deletes them.
+- Choose shading, underline or both, with five colors and a live preview in the annotation editor.
+  Annotation cards distinguish passages and notes and can expand long text.
+- Room v5 retains existing libraries and stores text ranges, quotes, notes, styles and colors.
+- Portable backup v4 includes collections and annotation styles/colors and restores v1/v2/v3 backups. Range/quote validation
+  happens before library changes; duplicate books retain their current annotations.
+- Search highlights the chosen occurrence with a reader-owned mark, avoiding native-find focus jumps.
+- Older marks retain their combined yellow style. Selections and notes each support up to 10,000 UTF-16 units.
+  Offsets refer to the same unmodified EPUB. This iteration is not included in the signed 1.2 APK.
+
+- Library collections and combined unread/reading/finished filters organize books.
+- Notes/highlights export to a user-selected Markdown document.
+- Offline installed TTS voices provide foreground playback, pause, speed and chapter continuity.
+- Backup restores recover from process interruption, support cancellation and display book progress.
+- Repeated search text is cached within a strict process-memory budget; overlapping marks use a sweep.
+- Reader layout readiness checks fonts/images with a bounded Chromium settling fallback.
+- Automated CI configuration covers JVM, Lint, builds and release/manual API 26/37 device jobs.
+
+Android: versionName `1.3`, versionCode `4`. Room v5 and backup v4 migrations are non-destructive.
+The candidate is not signed/published by this verification. Physical-device, TalkBack and broad
+publisher EPUB acceptance remain explicit delivery gates.
+
 ## 1.2 — 15 October 2026
 
 - Reading progress and bookmarks retain a text location across typography and reading-mode changes.

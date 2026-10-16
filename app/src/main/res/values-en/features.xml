@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="filter_all">All</string>
+    <string name="filter_unread">Unread</string>
+    <string name="filter_reading">Reading</string>
+    <string name="filter_finished">Finished</string>
+    <string name="all_collections">All collections</string>
+    <string name="collection">Collection</string>
+    <string name="collection_name">Collection name</string>
+    <string name="collection_hint">Enter a name or choose an existing collection. Leave it empty to remove this book from its collection.</string>
+    <string name="collection_save">Save</string>
+    <string name="read_aloud">Read aloud</string>
+    <string name="speech_play">Play</string>
+    <string name="speech_pause">Pause</string>
+    <string name="speech_description">Read from your position with an installed offline voice. Playback pauses when leaving the screen or losing audio focus.</string>
+    <string name="speech_error">Playback could not start. Check that an engine and an offline voice for the book language are installed.</string>
+    <string name="speech_rate">Speed: %1$.1f×</string>
+    <string name="speech_rate_label">Reading speed</string>
+    <string name="export_annotations">Export notes and highlights</string>
+    <string name="annotations_exported">Notes and highlights exported.</string>
+    <string name="annotation_export_error">Annotations could not be exported. Check the destination and available storage.</string>
+</resources>

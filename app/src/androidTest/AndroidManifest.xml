@@ -3,5 +3,8 @@
         <provider android:name="com.hector.epubreader.FixtureProvider"
             android:authorities="com.hector.epubreader.test.fixture"
             android:exported="true" />
+        <service android:name="com.hector.epubreader.TestSpeechService" android:exported="true">
+            <intent-filter><action android:name="android.intent.action.TTS_SERVICE" /><category android:name="android.intent.category.DEFAULT" /></intent-filter>
+        </service>
     </application>
 </manifest>

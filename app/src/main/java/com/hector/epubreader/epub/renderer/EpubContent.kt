@@ -1,12 +1,16 @@
 package com.hector.epubreader.epub.renderer
 
 import com.hector.epubreader.data.preferences.ReaderPreferences
+import com.hector.epubreader.epub.AnnotationStyle
+import com.hector.epubreader.epub.AnnotationColor
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import org.jsoup.nodes.Node
 import org.jsoup.nodes.TextNode
 
 object EpubContent {
+    data class Highlight(val start: Int, val end: Int, val style: String = "both", val color: String = "yellow")
+
     data class Colors(val background: String, val text: String, val link: String, val selection: String, val dark: Boolean)
 
     internal fun document(bytes: ByteArray): org.jsoup.nodes.Document {
@@ -29,10 +33,38 @@ object EpubContent {
     fun render(bytes: ByteArray, preferences: ReaderPreferences, fontScale: Float = 1f, colors: Colors = Colors(
         preferences.palette.background, preferences.palette.text, preferences.palette.link, preferences.palette.selection,
         preferences.palette.dark
-    )): String {
+    ), highlights: List<Highlight> = emptyList()): String {
         val p = preferences.validated()
         val doc = document(bytes)
         EpubText.index(doc.body(), mark = true)
+        val sweep = HighlightSweep(highlights)
+        doc.select("[data-reader-offset]").toList().forEach { marker ->
+            val start = marker.attr("data-reader-offset").toInt()
+            val text = (marker.childNode(0) as TextNode).wholeText
+            val end = start + text.length
+            val ranges = sweep.intersecting(start, end)
+            if (ranges.isNotEmpty()) {
+                val cuts = (listOf(start, end) + ranges.flatMap { listOf(it.start.coerceIn(start, end), it.end.coerceIn(start, end)) }).distinct().sorted()
+                cuts.zipWithNext().forEach { (a, b) ->
+                    val covering = ranges.filter { it.start < b && it.end > a }
+                    val shade = covering.lastOrNull { AnnotationStyle.fromId(it.style).shaded }
+                    val line = covering.lastOrNull { AnnotationStyle.fromId(it.style).underlined }
+                    val appearance = buildString {
+                        append("all:unset!important;display:${if (covering.isEmpty()) "contents" else "inline"}!important;")
+                        shade?.let { val color = AnnotationColor.fromId(it.color); append("background-color:${color.background}!important;color:${color.ink}!important;") }
+                        line?.let {
+                            val color = AnnotationColor.fromId(it.color)
+                            append("text-decoration:underline!important;text-decoration-color:${if (colors.dark && shade == null) color.darkLine else color.line}!important;text-decoration-thickness:0.1em!important;text-underline-offset:0.14em!important;")
+                        }
+                    }
+                    val piece = Element("lumbre-text").attr("data-reader-offset", a.toString())
+                        .attr("style", appearance)
+                    piece.appendChild(TextNode(text.substring(a - start, b - start)))
+                    marker.before(piece)
+                }
+                marker.remove()
+            }
+        }
         doc.head().prependElement("meta").attr("name", "viewport").attr("content", "width=device-width, initial-scale=1")
         when (p.readingMode) {
             "pages" -> {

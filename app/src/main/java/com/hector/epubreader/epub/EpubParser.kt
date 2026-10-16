@@ -12,7 +12,6 @@ class EpubParser {
             ZipFile(file).use { zip ->
                 validateArchive(zip)
                 if (read(zip, "mimetype", 100).toString(Charsets.US_ASCII).trim() != "application/epub+zip") throw InvalidEpub("Missing EPUB mimetype")
-                if (zip.getEntry("META-INF/encryption.xml") != null) throw UnsupportedEpub()
                 val container = xml(read(zip, "META-INF/container.xml"))
                 val opfPath = container.tag("rootfile").firstOrNull()?.attr("full-path")?.let { EpubPaths.resolve("", it) }
                     ?: throw InvalidEpub("Missing package")
@@ -23,6 +22,23 @@ class EpubParser {
                     EpubResource(it.attr("id"), EpubPaths.resolve(opfPath, it.attr("href")), it.attr("media-type"), it.attr("properties").split(' ').toSet())
                 }
                 if (manifest.isEmpty() || manifest.map { it.id }.distinct().size != manifest.size) throw InvalidEpub("Invalid manifest")
+                val fonts = mutableMapOf<String, FontObfuscation>()
+                if (zip.getEntry("META-INF/encryption.xml") != null) {
+                    val encrypted = xml(read(zip, "META-INF/encryption.xml")).tag("EncryptedData")
+                    if (encrypted.isEmpty()) throw UnsupportedEpub()
+                    val identifierId = opf.tag("package").firstOrNull()?.attr("unique-identifier")
+                    val identifier = metadata.tag("identifier").singleOrNull { it.attr("id") == identifierId && !identifierId.isNullOrBlank() }
+                        ?.wholeText()?.takeIf { it.filterNot { char -> char in " \t\r\n" }.isNotEmpty() }
+                        ?: throw InvalidEpub("Missing font obfuscation identifier")
+                    encrypted.forEach { entry ->
+                        if (entry.tag("EncryptionMethod").singleOrNull()?.attr("Algorithm") != "http://www.idpf.org/2008/embedding") throw UnsupportedEpub()
+                        val reference = entry.tag("CipherReference").singleOrNull() ?: throw InvalidEpub("Missing font reference")
+                        val path = EpubPaths.resolve("", reference.attr("URI"))
+                        val resource = manifest.singleOrNull { it.path == path } ?: throw InvalidEpub("Missing obfuscated font")
+                        if (!(resource.mediaType.startsWith("font/") || resource.mediaType in setOf("application/vnd.ms-opentype", "application/font-sfnt", "application/font-woff", "application/x-font-ttf", "application/x-font-opentype"))) throw UnsupportedEpub()
+                        if (zip.getEntry(path) == null || fonts.put(path, FontObfuscation(identifier)) != null) throw InvalidEpub("Invalid font reference")
+                    }
+                }
                 val byId = manifest.associateBy { it.id }
                 val spine = opf.tag("spine").firstOrNull() ?: throw InvalidEpub("Missing spine")
                 val chapterItems = spine.tag("itemref").filter { it.attr("linear") != "no" }.map {
@@ -58,7 +74,7 @@ class EpubParser {
                     metadata.tag("creator").map { it.text() }.filter { it.isNotBlank() }.joinToString(", ").ifBlank { null },
                     metadata.tag("language").firstOrNull()?.text(), metadata.tag("publisher").firstOrNull()?.text(),
                     cover?.takeIf { it.mediaType.startsWith("image/") && zip.getEntry(it.path) != null }?.path,
-                    chapters, contents.ifEmpty { chapters.map { TocEntry(it.title, it.path) } }, manifest.associateBy { it.path }
+                    chapters, contents.ifEmpty { chapters.map { TocEntry(it.title, it.path) } }, manifest.associateBy { it.path }, fonts
                 )
             }
         } catch (e: UnsupportedEpub) { throw e

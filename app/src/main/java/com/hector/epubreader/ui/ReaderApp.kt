@@ -9,6 +9,7 @@ import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -45,6 +46,17 @@ fun ReaderApp(vm: AppViewModel = viewModel()) {
     LaunchedEffect(library.message) {
         library.message?.let { snackbar.showSnackbar(context.getString(it)); vm.clearMessage() }
     }
+    if (library.recoveryFailed) {
+        EpubTheme(preferences.appTheme, preferences.dynamicColors, preferences.interfaceColor) {
+            Surface(Modifier.fillMaxSize()) {
+                Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center) {
+                    Text(stringResource(R.string.storage_error))
+                    Button(onClick = { vm.retryRecovery() }) { Text(stringResource(R.string.retry)) }
+                }
+            }
+        }
+        return
+    }
     if (!preferencesLoaded) return
     EpubTheme(preferences.appTheme, preferences.dynamicColors, preferences.interfaceColor) {
         val destinations = listOf(Triple("library", R.string.library, Icons.AutoMirrored.Outlined.MenuBook), Triple("search", R.string.search, Icons.Outlined.Search), Triple("settings", R.string.settings, Icons.Outlined.Settings))
@@ -61,18 +73,19 @@ fun ReaderApp(vm: AppViewModel = viewModel()) {
                     }
                 }
             }, floatingActionButton = {
-                if (route == "library" && library.books.isNotEmpty() && !library.importing) FloatingActionButton(onClick = add) { Icon(Icons.Outlined.Add, stringResource(R.string.add_book)) }
+                if (route == "library" && library.books.isNotEmpty() && !library.importing && !library.backupBusy && !library.backupBusy) FloatingActionButton(onClick = add) { Icon(Icons.Outlined.Add, stringResource(R.string.add_book)) }
             }) { insets ->
             val horizontalInsets = if (reader) WindowInsets.systemBarsIgnoringVisibility.union(WindowInsets.displayCutout) else WindowInsets.safeDrawing
             NavHost(nav, startDestination = "library", modifier = Modifier.padding(insets).windowInsetsPadding(horizontalInsets.only(WindowInsetsSides.Horizontal))) {
                 listOf("library", "search").forEach { destination -> composable(destination) {
-                    LibraryScreen(library, preferences, destination == "search", add, { nav.navigate("reader/$it") }, vm::remove, vm::reset)
+                    LibraryScreen(library, preferences, destination == "search", add, { if (!library.backupBusy) nav.navigate("reader/$it") }, vm::remove, vm::reset, vm::setCollection)
                 } }
                 listOf("settings", "readerSettings").forEach { destination -> composable(destination) {
                     SettingsScreen(preferences, { vm.updatePreferences(it) }, { vm.clearHistory() },
                         exportBackup = { exportBackup.launch("lumbre-backup.zip") },
                         restoreBackup = { restoreBackup.launch(arrayOf("application/zip", "application/octet-stream")) },
-                        backupBusy = library.backupBusy || library.importing)
+                        backupBusy = library.backupBusy || library.importing, backupCompleted = library.backupProgress.completed,
+                        backupTotal = library.backupProgress.total, cancelBackup = vm::cancelBackup)
                 } }
                 composable("reader/{bookId}") { backStack ->
                     val id = requireNotNull(backStack.arguments?.getString("bookId"))

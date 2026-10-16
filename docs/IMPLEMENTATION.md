@@ -52,3 +52,16 @@ Android versionName is `1.2` and versionCode is `3`. The signed APK and checksum
 `app/build/outputs/release-v1.2/`, separate from ordinary unsigned Gradle output. The certificate
 matches the verified 1.1 distribution. Release notes are in `RELEASE_NOTES.md`; observed checks
 and manual acceptance are recorded in `VERIFICATION.md`. Signing material remains outside Git.
+
+
+## Next iteration after 1.2 (unreleased)
+
+Implemented standard IDPF font deobfuscation in the bounded resource stream, Room v3 persistent
+highlights/notes, native text selection actions in all reading modes, an annotation editor/list,
+and backup v2 with validated annotation ranges and v1 restore compatibility. These supersede
+the initial deferrals above; the published 1.2 artifact remains historical.
+
+
+Annotation appearance refinement: Room v4 and portable backup v3 preserve style/color, with
+legacy defaults and backward restore compatibility. The editor offers a live preview, three
+styles and five accessible color choices. Cards improve quote/note hierarchy and long-text viewing.

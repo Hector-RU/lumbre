@@ -21,6 +21,7 @@ data class ImportResult(val book: BookEntity, val duplicate: Boolean)
 class BookRepository(private val context: Context, private val dao: LibraryDao, private val parser: EpubParser) {
     private val root = File(context.filesDir, "books").apply { mkdirs() }
     private val importMutex = Mutex()
+    private val textCache = CanonicalTextCache()
     val books = dao.observeBooks()
 
     suspend fun pruneOrphans() = withContext(Dispatchers.IO) {
@@ -32,14 +33,15 @@ class BookRepository(private val context: Context, private val dao: LibraryDao, 
         }
     }
 
-    suspend fun import(uri: Uri): ImportResult = withContext(Dispatchers.IO) {
+    suspend fun import(uri: Uri, plannedId: String? = null): ImportResult = withContext(Dispatchers.IO) {
         importMutex.withLock {
             val resolver = context.contentResolver
             val name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
                 if (it.moveToFirst()) it.getString(0) else null
             } ?: if (uri.scheme == "file") File(requireNotNull(uri.path)).name else "EPUB"
             if (!name.endsWith(".epub", ignoreCase = true) && resolver.getType(uri) != "application/epub+zip") throw InvalidEpub("Not an EPUB")
-            val id = UUID.randomUUID().toString()
+            val id = plannedId ?: UUID.randomUUID().toString()
+            require(id.matches(Regex("[a-f0-9-]{36}")))
             val folder = File(root, id).apply { mkdirs() }
             var committed = false
             try {
@@ -95,12 +97,40 @@ class BookRepository(private val context: Context, private val dao: LibraryDao, 
     suspend fun reset(book: BookEntity, completed: Boolean) = dao.saveProgress(book.id, if (completed) book.chapterCount - 1 else 0, if (completed) 1f else 0f, if (completed) 1f else 0f, book.lastRead)
     suspend fun remove(book: BookEntity) = withContext(Dispatchers.IO) {
         dao.delete(book)
+        textCache.remove(book.checksum)
         if (!folder(book.id).deleteRecursively()) throw IOException("Could not remove local files")
+    }
+    suspend fun setCollection(book: BookEntity, collection: String) {
+        val name = collection.trim()
+        require(name.length <= 80)
+        // Update only this field: a concurrent progress write must not be overwritten.
+        dao.setCollection(book.id, name)
     }
     suspend fun clearHistory() = dao.clearHistory()
     fun bookmarks(id: String) = dao.bookmarks(id)
     suspend fun addBookmark(bookmark: BookmarkEntity) = dao.insertBookmark(bookmark)
     suspend fun removeBookmark(bookmark: BookmarkEntity) = dao.deleteBookmark(bookmark)
+
+    fun annotations(id: String) = dao.annotations(id)
+    suspend fun saveAnnotation(annotation: AnnotationEntity) = withContext(Dispatchers.IO) {
+        val book = open(annotation.bookId)
+        validateAnnotation(annotation, book)
+        dao.saveAnnotation(annotation)
+    }
+    suspend fun removeAnnotation(annotation: AnnotationEntity) = dao.deleteAnnotation(annotation)
+
+    fun validateAnnotation(annotation: AnnotationEntity, book: OpenBook, canonicalText: String? = null) {
+        require(AnnotationStyle.entries.any { it.id == annotation.style } && AnnotationColor.entries.any { it.id == annotation.color })
+        require(annotation.chapter in book.publication.chapters.indices)
+        require(book.publication.resources[annotation.resourcePath]?.mediaType in setOf("application/xhtml+xml", "text/html"))
+        require(annotation.startOffset >= 0 && annotation.endOffset > annotation.startOffset && annotation.endOffset.toLong() - annotation.startOffset <= 10000)
+        require(annotation.note.length <= 10000 && annotation.createdAt >= 0)
+        val text = canonicalText ?: canonicalText(book, annotation.resourcePath)
+        require(annotation.endOffset <= text.length && text.substring(annotation.startOffset, annotation.endOffset) == annotation.quote)
+        fun splitsSurrogate(offset: Int) = offset > 0 && offset < text.length && text[offset].isLowSurrogate() && text[offset - 1].isHighSurrogate()
+        require(!splitsSurrogate(annotation.startOffset) && !splitsSurrogate(annotation.endOffset))
+        require(annotation.quote.isNotBlank())
+    }
 
     suspend fun search(book: OpenBook, query: String): List<SearchHit> = withContext(Dispatchers.IO) {
         if (query.trim().length < 2) return@withContext emptyList()
@@ -108,8 +138,7 @@ class BookRepository(private val context: Context, private val dao: LibraryDao, 
         val hits = mutableListOf<SearchHit>()
         book.publication.chapters.forEachIndexed { index, chapter ->
             currentCoroutineContext().ensureActive()
-            val bytes = parser.readResource(book.file, chapter.path)
-            val text = EpubText.text(bytes)
+            val text = canonicalText(book, chapter.path)
             EpubText.matches(text, term).forEach { match ->
                 currentCoroutineContext().ensureActive()
                 // Bound pathological books without silently hiding truncation in the UI.
@@ -118,6 +147,13 @@ class BookRepository(private val context: Context, private val dao: LibraryDao, 
             }
         }
         hits
+    }
+
+    fun canonicalText(book: OpenBook, path: String): String {
+        textCache.get(book.record.checksum, path)?.let { return it }
+        val text = EpubText.text(parser.readResource(book.file, path))
+        textCache.put(book.record.checksum, path, text)
+        return text
     }
 
     private fun folder(id: String): File {

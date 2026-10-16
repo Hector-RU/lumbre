@@ -77,23 +77,21 @@ class ReaderGestureTest {
     }
 
     private fun touchReader(scenario: ActivityScenario<ComponentActivity>, swipe: Boolean = false) {
-        val start = SystemClock.uptimeMillis()
-        fun send(action: Int, fraction: Float) {
-            scenario.onActivity { activity ->
-                val web = requireNotNull(findWebView(activity.window.decorView))
-                val event = MotionEvent.obtain(start, SystemClock.uptimeMillis(), action,
+        // Deliver the intended 40/80 ms sequence in one UI turn. Separate onActivity
+        // round trips under host load can turn a synthetic short tap into a long press.
+        scenario.onActivity { activity ->
+            val web = requireNotNull(findWebView(activity.window.decorView))
+            val start = SystemClock.uptimeMillis()
+            fun send(action: Int, fraction: Float, elapsed: Long) {
+                val event = MotionEvent.obtain(start, start + elapsed, action,
                     web.width * fraction, web.height * 0.5f, 0)
                 web.dispatchTouchEvent(event)
                 event.recycle()
             }
+            send(MotionEvent.ACTION_DOWN, if (swipe) 0.8f else 0.5f, 0)
+            if (swipe) send(MotionEvent.ACTION_MOVE, 0.5f, 40)
+            send(MotionEvent.ACTION_UP, if (swipe) 0.2f else 0.5f, if (swipe) 80 else 40)
         }
-        send(MotionEvent.ACTION_DOWN, if (swipe) 0.8f else 0.5f)
-        SystemClock.sleep(40)
-        if (swipe) {
-            send(MotionEvent.ACTION_MOVE, 0.5f)
-            SystemClock.sleep(40)
-        }
-        send(MotionEvent.ACTION_UP, if (swipe) 0.2f else 0.5f)
     }
 
     private fun awaitReaderSettled(scenario: ActivityScenario<ComponentActivity>) {

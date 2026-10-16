@@ -1,5 +1,6 @@
 package com.hector.epubreader.ui.library
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -36,13 +37,23 @@ import java.text.DateFormat
 import java.util.Date
 
 @Composable
-fun LibraryScreen(state: LibraryUiState, preferences: ReaderPreferences, search: Boolean, add: () -> Unit, open: (String) -> Unit, remove: (BookEntity) -> Unit, reset: (BookEntity, Boolean) -> Unit) {
+fun LibraryScreen(state: LibraryUiState, preferences: ReaderPreferences, search: Boolean, add: () -> Unit, open: (String) -> Unit, remove: (BookEntity) -> Unit, reset: (BookEntity, Boolean) -> Unit, setCollection: (BookEntity, String) -> Unit = { _, _ -> }) {
     var query by rememberSaveable { mutableStateOf("") }
     var deleting by remember { mutableStateOf<BookEntity?>(null) }
     var info by remember { mutableStateOf<BookEntity?>(null) }
+    var collectionBook by remember { mutableStateOf<BookEntity?>(null) }
+    var collectionName by rememberSaveable { mutableStateOf("") }
+    var selectedCollection by rememberSaveable { mutableStateOf<String?>(null) }
+    var status by rememberSaveable { mutableStateOf("all") }
+    val collections = state.books.map { it.collection }.filter { it.isNotBlank() }.distinct().sorted()
+    LaunchedEffect(collections) { if (selectedCollection != null && selectedCollection !in collections) selectedCollection = null }
     val locale = LocalConfiguration.current.locales[0]
-    val books = remember(state.books, query, preferences.sort, preferences.ascending) {
-        val list = state.books.filter { it.title.contains(query, true) || it.author.orEmpty().contains(query, true) }
+    val books = remember(state.books, query, preferences.sort, preferences.ascending, selectedCollection, status) {
+        val list = state.books.filter {
+            (it.title.contains(query, true) || it.author.orEmpty().contains(query, true)) &&
+                (selectedCollection == null || it.collection == selectedCollection) &&
+                when (status) { "unread" -> it.progress == 0f; "reading" -> it.progress > 0f && it.progress < 1f; "finished" -> it.progress >= 1f; else -> true }
+        }
         val sorted = when (preferences.sort) {
             "title" -> list.sortedBy { it.title.lowercase() }
             "author" -> list.sortedBy { it.author.orEmpty().lowercase() }
@@ -53,6 +64,17 @@ fun LibraryScreen(state: LibraryUiState, preferences: ReaderPreferences, search:
         if (preferences.ascending) sorted else sorted.reversed()
     }
     Column(Modifier.fillMaxSize()) {
+        if (state.books.isNotEmpty()) {
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("all" to R.string.filter_all, "unread" to R.string.filter_unread, "reading" to R.string.filter_reading, "finished" to R.string.filter_finished).forEach { (value, label) ->
+                    FilterChip(selected = status == value, onClick = { status = value }, label = { Text(stringResource(label)) })
+                }
+            }
+            if (collections.isNotEmpty()) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = selectedCollection == null, onClick = { selectedCollection = null }, label = { Text(stringResource(R.string.all_collections)) })
+                collections.forEach { name -> FilterChip(selected = selectedCollection == name, onClick = { selectedCollection = name }, label = { Text(name) }) }
+            }
+        }
         if (search) OutlinedTextField(query, { query = it }, singleLine = true, label = { Text(stringResource(R.string.search_library)) }, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp))
         if (state.importing) {
             LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -68,36 +90,46 @@ fun LibraryScreen(state: LibraryUiState, preferences: ReaderPreferences, search:
                 Text(stringResource(if (state.books.isEmpty()) R.string.empty_description else R.string.search_hint), style = MaterialTheme.typography.bodyLarge)
                 if (state.books.isEmpty()) {
                     Spacer(Modifier.height(24.dp))
-                    FilledTonalButton(onClick = add, enabled = !state.importing) { Icon(Icons.Outlined.Add, null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.add_book)) }
+                    FilledTonalButton(onClick = add, enabled = !state.importing && !state.backupBusy) { Icon(Icons.Outlined.Add, null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.add_book)) }
                 }
             }
             else -> {
                 Text(pluralStringResource(R.plurals.books_count, books.size, books.size), Modifier.padding(horizontal = 24.dp, vertical = 12.dp), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (preferences.listView) LazyColumn(contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 96.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     items(books, key = { it.id }) { book ->
-                        Row(Modifier.fillMaxWidth().clickable { open(book.id) }, verticalAlignment = Alignment.CenterVertically) {
+                        Row(Modifier.fillMaxWidth().clickable(enabled = !state.backupBusy) { open(book.id) }, verticalAlignment = Alignment.CenterVertically) {
                             BookCover(book, Modifier.width(64.dp).height(92.dp))
                             Column(Modifier.weight(1f).padding(16.dp)) { BookText(book) }
-                            BookMenu(book, open, { info = book }, { deleting = book }, reset)
+                            BookMenu(book, open, { info = book }, { deleting = book }, reset, { collectionBook = book; collectionName = book.collection })
                         }
                     }
                 } else LazyVerticalGrid(columns = GridCells.Adaptive(140.dp), contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 96.dp), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
                     items(books, key = { it.id }) { book ->
                         Column {
-                            Column(Modifier.clickable { open(book.id) }) {
+                            Column(Modifier.clickable(enabled = !state.backupBusy) { open(book.id) }) {
                                 BookCover(book, Modifier.fillMaxWidth().aspectRatio(0.68f))
                                 Spacer(Modifier.height(10.dp))
                                 BookText(book)
                             }
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                 LinearProgressIndicator(progress = { book.progress }, modifier = Modifier.weight(1f).height(3.dp))
-                                BookMenu(book, open, { info = book }, { deleting = book }, reset)
+                                BookMenu(book, open, { info = book }, { deleting = book }, reset, { collectionBook = book; collectionName = book.collection })
                             }
                         }
                     }
                 }
             }
         }
+    }
+    collectionBook?.let { book ->
+        AlertDialog(onDismissRequest = { collectionBook = null }, title = { Text(stringResource(R.string.collection)) }, text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                OutlinedTextField(collectionName, { collectionName = it.take(80) }, label = { Text(stringResource(R.string.collection_name)) }, singleLine = true)
+                Text(stringResource(R.string.collection_hint))
+                collections.forEach { name -> TextButton(onClick = { collectionName = name }) { Text(name) } }
+            }
+        }, confirmButton = { TextButton(onClick = { setCollection(book, collectionName); collectionBook = null }) { Text(stringResource(R.string.collection_save)) } },
+            dismissButton = { TextButton(onClick = { collectionBook = null }) { Text(stringResource(R.string.cancel)) } })
     }
     deleting?.let { book -> AlertDialog(onDismissRequest = { deleting = null }, title = { Text(stringResource(R.string.delete_title)) }, text = { Text(stringResource(R.string.delete_description)) }, confirmButton = { TextButton(onClick = { remove(book); deleting = null }) { Text(stringResource(R.string.delete)) } }, dismissButton = { TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.cancel)) } }) }
     info?.let { book -> AlertDialog(onDismissRequest = { info = null }, title = { Text(book.title) }, text = {
@@ -129,12 +161,12 @@ private fun BookText(book: BookEntity) {
 }
 
 @Composable
-private fun BookMenu(book: BookEntity, open: (String) -> Unit, info: () -> Unit, delete: () -> Unit, reset: (BookEntity, Boolean) -> Unit) {
+private fun BookMenu(book: BookEntity, open: (String) -> Unit, info: () -> Unit, delete: () -> Unit, reset: (BookEntity, Boolean) -> Unit, collection: () -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { expanded = true }) { Icon(Icons.Outlined.MoreVert, stringResource(R.string.book_options, book.title)) }
         DropdownMenu(expanded, { expanded = false }) {
-            listOf<Pair<Int, () -> Unit>>(R.string.open_book to { open(book.id) }, R.string.book_info to info, R.string.mark_read to { reset(book, true) }, R.string.reset_progress to { reset(book, false) }, R.string.remove_library to delete).forEach { (label, action) ->
+            listOf<Pair<Int, () -> Unit>>(R.string.open_book to { open(book.id) }, R.string.book_info to info, R.string.collection to collection, R.string.mark_read to { reset(book, true) }, R.string.reset_progress to { reset(book, false) }, R.string.remove_library to delete).forEach { (label, action) ->
                 DropdownMenuItem(text = { Text(stringResource(label)) }, onClick = { expanded = false; action() })
             }
         }

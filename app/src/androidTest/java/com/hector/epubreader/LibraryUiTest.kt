@@ -25,8 +25,12 @@ class LibraryUiTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
     @Before fun keepTestActivityVisible() {
         compose.runOnUiThread {
-            compose.activity.setShowWhenLocked(true)
-            compose.activity.setTurnScreenOn(true)
+            if (android.os.Build.VERSION.SDK_INT >= 27) {
+                compose.activity.setShowWhenLocked(true)
+                compose.activity.setTurnScreenOn(true)
+            } else {
+                compose.activity.window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
+            }
             compose.activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
     }
@@ -37,6 +41,24 @@ class LibraryUiTest {
         compose.onNodeWithText(compose.activity.getString(R.string.add_book)).performClick()
         assertTrue(imported)
     }
+    @Test fun collectionsAndReadingFiltersCanBeCombined() {
+        val base = com.hector.epubreader.data.local.BookEntity("one", "Unread book", "Author", "", "hash1", null, null, null, 2, collection = "Study")
+        val state = mutableStateOf(LibraryUiState(books = listOf(base, base.copy(id = "two", title = "Finished book", checksum = "hash2", progress = 1f)), loading = false))
+        compose.setContent { EpubTheme { LibraryScreen(state.value, ReaderPreferences(), false, {}, {}, {}, { _, _ -> }, { book, name ->
+            state.value = state.value.copy(books = state.value.books.map { if (it.id == book.id) it.copy(collection = name) else it })
+        }) } }
+        compose.onNodeWithText("Study").performClick().assertIsSelected()
+        compose.onNodeWithText(compose.activity.getString(R.string.filter_unread)).performClick().assertIsSelected()
+        compose.onNodeWithText("Unread book").assertIsDisplayed()
+        compose.onNodeWithText("Finished book").assertDoesNotExist()
+        compose.onNodeWithContentDescription(compose.activity.getString(R.string.book_options, "Unread book")).performClick()
+        compose.onNodeWithText(compose.activity.getString(R.string.collection)).performClick()
+        compose.onNodeWithText(compose.activity.getString(R.string.collection_name)).performTextReplacement("Fiction")
+        compose.onNodeWithText(compose.activity.getString(R.string.collection_save)).performClick()
+        compose.onNodeWithText("Fiction").assertExists()
+        assertEquals("Fiction", state.value.books.first().collection)
+    }
+
     @Test fun themePreferenceCanBeChanged() {
         var dark = false
         compose.setContent { EpubTheme { SettingsScreen(ReaderPreferences(), { transform -> dark = transform(ReaderPreferences()).appTheme == "dark" }, {}) } }

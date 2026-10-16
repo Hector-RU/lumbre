@@ -1,6 +1,10 @@
 # Lumbre
 
-Current release: **1.2** (Android versionCode `3`). See [release notes](docs/RELEASE_NOTES.md).
+Current published release: **1.2** (Android versionCode `3`). See [release notes](docs/RELEASE_NOTES.md).
+
+The working tree prepares **1.3** (versionCode `4`): IDPF fonts, configurable annotations,
+collections, annotation export, foreground offline TTS, Room v5 and recoverable backup v4
+(restoring v1/v2/v3 as well). This candidate is not yet published.
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
@@ -13,13 +17,15 @@ Android Studio project.
 - Import through the Android Storage Access Framework (SAF), with validation and duplicate detection.
 - Persistent local copy: the book stays available even if the original file is moved.
 - Covers, metadata, grid/list layout, search by title/author and five sorting criteria.
-- Reflowable EPUB 2/3: chapters, nav/NCX table of contents, images, CSS, internal links and local fonts.
+- Reflowable EPUB 2/3: chapters, nav/NCX table of contents, images, CSS, internal links and local fonts, including standard IDPF-obfuscated fonts.
 - Immersive reader with a central tap to show or hide controls without moving the text, searchable table of contents, search and bookmarks.
+- Long press text to shade, underline or combine both, with five colors and an optional note. A live preview and an annotation list support editing, navigation, expanding long passages/notes and deletion.
 - Automatic chapter and text-position saving; progress resumes across typography and reading-mode changes, with fraction fallback for older positions.
 - Four font families (including the book's own), size, line spacing, margins and justification.
 - Twelve reading themes independent of the app light/dark/system theme and Material You, with searchable settings and a typography preview.
 - Book information, mark as read, restart progress and delete only the library copy.
-- Manual ZIP backup and restore through SAF, including books, progress, bookmarks and reading/app preferences.
+- Manual ZIP backup and restore through SAF, including books, progress, bookmarks, highlights, notes and reading/app preferences.
+- Collections, reading-state filters, Markdown annotation export and foreground TTS with installed offline voices.
 - No accounts, network, global storage permissions, ads or analytics.
 
 ## Build and run
@@ -85,8 +91,8 @@ Screenshots from the Android 35 emulator: [library](docs/screenshots/02-library.
 [reader](docs/screenshots/03-reader.png), [appearance](docs/screenshots/04-appearance.png),
 [search](docs/screenshots/09-search.png), [landscape](docs/screenshots/12-landscape.png).
 
-Latest verification (15 October 2026): **28 JVM tests + 19 Android tests passing**.
-Debug/release Lint reports 0 errors and 20 warnings per variant. The environment, checks and
+Latest verification (15 October 2026, unreleased iteration): **36 JVM tests + 25 Android tests passing**.
+Debug/release Lint reports 0 errors and 21 warnings per variant. The environment, checks and
 manual-validation limits are recorded in [VERIFICATION.md](docs/VERIFICATION.md).
 SAF import, reading, appearance controls, table of contents, force close, restoration, search,
 bookmarks and deletion without removing the original EPUB were also checked manually.
@@ -105,8 +111,8 @@ Readium was evaluated as a possible engine evolution but is not added as a depen
 
 ## Limitations and next steps
 
-- Scrolling, page and paragraph reading modes. Notes, highlights and TTS are still pending.
-- Encrypted/DRM EPUBs, obfuscated fonts and fixed layout are rejected with an explicit message.
+- Scrolling, page and paragraph reading modes, persistent notes and configurable highlights.
+- IDPF-obfuscated fonts are supported. DRM, Adobe legacy font obfuscation and fixed layout remain unsupported.
 - New positions use a chapter/resource path and a UTF-16 text offset stable across reading layouts.
   Pagination opens the page containing the text. Older positions and image-only content fall back
   to a scroll fraction. This locator is internal, not EPUB CFI; it assumes the same book content.
@@ -119,8 +125,17 @@ Readium was evaluated as a possible engine evolution but is not added as a depen
 - Settings → Data exports/restores a versioned ZIP backup (up to 1,000 books, 2 GiB total and 8 MiB
   metadata). Restore adds missing books, keeps existing duplicates and applies the saved preferences.
   Backups are unencrypted; choose a suitable storage location. App-language selection is managed by
-  Android separately and is not included. Synchronization and statistics remain pending.
+  Android separately and is not included. Interrupted restores roll back on restart; exports may leave
+  a partial provider document if interrupted. Synchronization and statistics remain pending.
 - The user reported successful manual compatibility, accessibility and backup checks. The 1.2 APK
   is signed and verified; additional device/EPUB coverage is tracked in `docs/ROADMAP.md`.
 
 See [ROADMAP.md](docs/ROADMAP.md) for completed work, priorities and release gates.
+
+
+## 1.3 candidate validation
+
+See [COMPATIBILITY.md](docs/COMPATIBILITY.md) for the device/publication acceptance matrix,
+[VERIFICATION.md](docs/VERIFICATION.md) for actual results and [.github/workflows/android.yml](.github/workflows/android.yml)
+for CI. TTS pauses when leaving the reader and requires an installed offline voice for the book
+language. It is not a background playback service. Each book can belong to one named collection.

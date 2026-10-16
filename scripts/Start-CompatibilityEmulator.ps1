@@ -40,5 +40,5 @@ PlayStore.enabled=false
 "@ | Set-Content -LiteralPath (Join-Path $avdPath 'config.ini') -Encoding utf8
 $env:ANDROID_AVD_HOME = $avdRoot
 $env:ANDROID_HOME = $SdkPath
-$process = Start-Process -FilePath (Join-Path $SdkPath 'emulator/emulator.exe') -ArgumentList @('-avd','LumbreApi26','-no-window','-no-audio','-no-snapshot','-gpu','swiftshader','-accel','on','-port',"$Port") -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $workspace 'test-artifacts/api26-emulator.log') -RedirectStandardError (Join-Path $workspace 'test-artifacts/api26-emulator-error.log')
+$process = Start-Process -FilePath (Join-Path $SdkPath 'emulator/emulator.exe') -ArgumentList @('-avd','LumbreApi26','-writable-system','-no-window','-no-audio','-no-snapshot','-gpu','swiftshader','-accel','on','-port',"$Port") -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $workspace 'test-artifacts/api26-emulator.log') -RedirectStandardError (Join-Path $workspace 'test-artifacts/api26-emulator-error.log')
 Write-Output "Started isolated API 26 emulator PID $($process.Id), serial emulator-$Port."

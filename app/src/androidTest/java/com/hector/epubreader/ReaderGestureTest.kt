@@ -223,7 +223,7 @@ class ReaderGestureTest {
                               range.setStart(last, end - 1); range.setEnd(last, end);
                               var rect = range.getBoundingClientRect();
                               var viewport = flow.getBoundingClientRect();
-                              var visual = window.visualViewport;
+                              var visual = window.visualViewport || {offsetLeft:0,offsetTop:0,width:window.innerWidth,height:window.innerHeight};
                               return [rect.left - visual.offsetLeft, rect.right - visual.offsetLeft,
                                 rect.top - visual.offsetTop, rect.bottom - visual.offsetTop, viewport.width, viewport.height,
                                 document.documentElement.scrollWidth, Math.ceil(flow.scrollWidth / viewport.width)].join('|');
@@ -284,7 +284,7 @@ class ReaderGestureTest {
                     }
                     if (mode == "pages") assertEquals("true", javascript(scenario, """
                         (function() {
-                          var visual = window.visualViewport;
+                          var visual = window.visualViewport || {offsetLeft:0,offsetTop:0,width:window.innerWidth,height:window.innerHeight};
                           var points = [[25, 52], [visual.offsetLeft + 25, visual.offsetTop + 52]];
                           for (var i = 0; i < points.length; i++) {
                             var caret = document.caretRangeFromPoint(points[i][0], points[i][1]);
@@ -462,7 +462,7 @@ class ReaderGestureTest {
                         }
                         assertEquals("$mode must start with visible text", "true", javascript(scenario, """
                             (function() {
-                              var visual = window.visualViewport;
+                              var visual = window.visualViewport || {offsetLeft:0,offsetTop:0,width:window.innerWidth,height:window.innerHeight};
                               var points = [[${preferences.horizontalMargin + 1}, ${preferences.verticalMargin + 28}],
                                 [visual.offsetLeft + ${preferences.horizontalMargin + 1}, visual.offsetTop + ${preferences.verticalMargin + 28}]];
                               for (var i = 0; i < points.length; i++) {
@@ -522,7 +522,7 @@ class ReaderGestureTest {
                                 javascript(scenario, "window.testTextAnchor.getBoundingClientRect().toJSON()"))
                             val metrics = javascript(scenario, """
                                 (function() {
-                                  var visual = window.visualViewport;
+                                  var visual = window.visualViewport || {offsetLeft:0,offsetTop:0,width:window.innerWidth,height:window.innerHeight};
                                   var scroll = window.scrollX;
                                   var rect = window.testTextAnchor.getBoundingClientRect();
                                   return [rect.left + scroll - visual.pageLeft, rect.right + scroll - visual.pageLeft,

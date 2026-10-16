@@ -399,7 +399,12 @@ internal class ReadingWebView(context: Context) : WebView(context) {
             pendingResizeTurns += direction
             return
         }
-        if (horizontalMode()) evaluateJavascript("window.readerReadingAnchor = null", null)
+        if (horizontalMode()) {
+            // A completed resize may still have Chromium callbacks in flight.
+            // A deliberate turn supersedes those callbacks and their old anchor.
+            resizeToken++
+            evaluateJavascript("window.readerReadingAnchor = null", null)
+        }
         if (direction > 0 && maximum() - origin <= 4) { requestNextChapter(); return }
         if (direction < 0 && origin <= 4) { requestPreviousChapter(); return }
         if (horizontalMode()) {

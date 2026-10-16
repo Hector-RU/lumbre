@@ -52,7 +52,7 @@ Move-Item -LiteralPath $workingApk -Destination $outputApk -Force
 $checksum = (Get-FileHash -LiteralPath $outputApk -Algorithm SHA256).Hash.ToLowerInvariant()
 "$checksum  $name" | Set-Content -LiteralPath "$outputApk.sha256" -Encoding ascii
 $sourceCommit = (& git -C $workspace rev-parse HEAD | Out-String).Trim()
-$sourceDirty = [bool](& git -C $workspace status --porcelain | Out-String).Trim()
+$sourceDirty = ((& git -C $workspace status --porcelain | Out-String).Trim().Length -gt 0)
 @{ versionName = '1.3'; versionCode = 4; signed = $signed; apk = $name; sha256 = $checksum; bytes = (Get-Item -LiteralPath $outputApk).Length; published = $false; sourceCommit = $sourceCommit; sourceDirty = $sourceDirty } |
     ConvertTo-Json | Set-Content -LiteralPath (Join-Path $outputDirectory "$name.json") -Encoding utf8
 Write-Output "Candidate prepared: $outputApk (signed: $signed, published: false)"

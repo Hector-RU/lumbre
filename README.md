@@ -1,7 +1,14 @@
 # Lumbre
 
-Current published release: **[1.3](https://github.com/Hector-RU/lumbre/releases/tag/v1.3)**
-(Android versionCode `4`). See [release notes](docs/RELEASE_NOTES.md).
+Current published release: **[1.4](https://github.com/Hector-RU/lumbre/releases/tag/v1.4)**
+(Android versionCode `5`). See [release notes](docs/RELEASE_NOTES.md).
+
+Version **1.4** (Android versionCode `5`) adds expanded and compact read-aloud players,
+sentence highlighting and navigation, offline voice selection, a sleep timer and refreshed
+launcher artwork. See [release notes](docs/RELEASE_NOTES.md) and [verification](docs/VERIFICATION.md).
+The signed APK and its SHA-256 checksum are attached to the release. Its signing certificate
+matches 1.3, allowing installation as an update. Local packaging evidence is under
+`app/build/outputs/release-v1.4/`.
 
 Version **1.3** includes IDPF fonts, configurable annotations,
 collections, annotation export, foreground offline TTS, Room v5 and recoverable backup v4

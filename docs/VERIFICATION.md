@@ -457,3 +457,34 @@ timeout; it was stopped and its log retained. The final run retried the nullable
 with the emulator's original inactive accessibility setting and empty enabled-services value,
 both confirmed after completion. All 33 tests passed with no skips or disabled assertions.
 Machine-readable final summary: `test-artifacts/roadmap-validation.json`.
+
+## 19 October 2026 — Lumbre 1.4 release
+
+Android versionName `1.4`, versionCode `5`; Room v5 and backup v4 are unchanged.
+
+| Check | Result |
+| --- | --- |
+| JVM tests (`testDebugUnitTest`) | 46 passed, 0 failures/errors |
+| Debug and release Lint | 0 errors / 27 warnings per variant |
+| Debug, release and instrumentation APK builds | Passed |
+| Targeted Android regression tests | 8 passed on emulator API 37 |
+| Release APK metadata | `com.hector.epubreader`, versionName `1.4`, versionCode `5` |
+| APK signatures | v2/v3 verified; certificate matches signed 1.3 |
+| APK alignment | Verified with `zipalign -c -P 16 -v 4` |
+
+The targeted device run includes `ReaderSpeechTest`, `SpeechHighlightTest` and
+`SpeechPlayerTest`: playback completion, unsupported-language handling, voice fallback,
+sentence/chapter navigation, preserving paused narration against stale WebView captures,
+non-destructive sentence shading, rendered-book continuity and reachable player controls.
+The opt-in real-engine `DeviceSpeechTest` was not run.
+
+Build evidence: `test-artifacts/release-1.4-build.log`.
+Device evidence: `test-artifacts/release-1.4-speech-tests.log`.
+Packaging evidence: `app/build/outputs/release-v1.4/`, including the signed APK,
+SHA-256 checksum, signature/alignment reports and source metadata. Signing material remains
+outside the repository. The certificate SHA-256 remains
+`09363ff5326e5eff4808da394cececf804e271fe803ee832e59f30710c948f7c`.
+
+This is targeted verification of the 1.4 changes. The full Android suite, API 26,
+a signed upgrade with populated user data, physical-device TalkBack and audible voice quality
+were not rerun for this release; earlier 1.3 results above remain historical evidence.

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<resources>
+
+    <string name="speech_close">Cerrar reproductor</string>
+
+    <string name="speech_expand">Abrir reproductor</string>
+
+    <string name="speech_voice">Voz</string>
+
+    <string name="speech_timer">Temporizador</string>
+
+    <string name="speech_timer_off">Desactivado</string>
+
+    <string name="speech_minutes">%1$d min</string>
+
+    <string name="speech_back">Oración anterior</string>
+
+    <string name="speech_forward">Siguiente oración</string>
+
+    <string name="speech_progress">Posición de la narración</string>
+
+    <string name="speech_estimate">Tiempo estimado</string>
+
+    <string name="speech_start_hint">Pulsa reproducir para escuchar desde tu posición.</string>
+
+    <string name="speech_settings">Configurar voces</string>
+
+    <string name="speech_install">Instalar datos de voz</string>
+
+    <string name="speech_engine_error">No se pudo conectar con el motor de voz. Revisa el motor seleccionado en los ajustes de Android y vuelve a intentarlo.</string>
+
+    <string name="speech_voice_error">No hay una voz sin conexión disponible para el idioma del libro. Instala sus datos de voz en Android y vuelve a intentarlo.</string>
+
+    <string name="speech_audio_error">Android no concedió el audio. Pausa la otra reproducción y vuelve a intentarlo.</string>
+
+    <string name="speech_synthesis_error">El motor no pudo leer este fragmento. Prueba otra voz o revisa sus datos en Android.</string>
+
+</resources>

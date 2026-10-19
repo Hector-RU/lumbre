@@ -19,7 +19,7 @@ data class ReaderLocation(val chapter: Int = 0, val position: Float = 0f, val fr
 data class ReaderUiState(val book: OpenBook? = null, val loading: Boolean = true, val error: Boolean = false, val location: ReaderLocation = ReaderLocation())
 data class ReaderSearchState(val query: String = "", val searching: Boolean = false, val hits: List<SearchHit> = emptyList(), val error: Boolean = false)
 
-class ReaderViewModel(private val app: ReaderApplication, private val id: String, private val repository: BookRepository = app.books, speechEnginePackage: String? = null) : ViewModel() {
+class ReaderViewModel(private val app: ReaderApplication, private val id: String, private val repository: BookRepository = app.books, private val speechEnginePackage: String? = null) : ViewModel() {
     private var speechJob: Job? = null
     private var speechSession = false
     private var speechHasPosition = false
@@ -27,8 +27,10 @@ class ReaderViewModel(private val app: ReaderApplication, private val id: String
     private var speechChapter = 0
     private var speechPath: String? = null
     private var speechLength = 1
-    private val speechDelegate = lazy { ReaderSpeech(app, progress = { offset, chunk ->
-        if (chunk) navigate(speechChapter, textOffset = offset, resourcePath = speechPath, fromSpeech = true)
+    private fun createSpeech() = ReaderSpeech(app, progress = { offset, chunk ->
+        val location = _state.value.location
+        if (chunk && (location.chapter != speechChapter || location.resourcePath != speechPath))
+            navigate(speechChapter, textOffset = offset, resourcePath = speechPath, fromSpeech = true)
         textOffset = offset
         _position.value = (offset.toFloat() / speechLength).coerceIn(0f, 1f)
         dirty = true
@@ -36,11 +38,21 @@ class ReaderViewModel(private val app: ReaderApplication, private val id: String
         val book = _state.value.book
         if (speechSession && speechPath == null && book != null && speechChapter < book.publication.chapters.lastIndex) startSpeech(speechChapter + 1, null, 0)
         else { speechSession = false; flush() }
-    }, enginePackage = speechEnginePackage, interrupted = { pauseSpeech() }) }
+    }, enginePackage = speechEnginePackage, interrupted = { pauseSpeech() })
+    private var speechDelegate = lazy { createSpeech() }
     private val speech get() = speechDelegate.value
     private val _speechState = MutableStateFlow(SpeechState())
     val speechState = _speechState.asStateFlow()
     private var speechObservation: Job? = null
+    fun retrySpeech() {
+        pauseSpeech()
+        speechObservation?.cancel()
+        speechObservation = null
+        if (speechDelegate.isInitialized()) speech.close()
+        speechDelegate = lazy { createSpeech() }
+        _speechState.value = SpeechState()
+        prepareSpeech()
+    }
     fun prepareSpeech() {
         val engine = speech
         if (speechObservation == null) speechObservation = viewModelScope.launch { engine.state.collect { _speechState.value = it } }
@@ -73,9 +85,9 @@ class ReaderViewModel(private val app: ReaderApplication, private val id: String
         startSpeech(location.chapter, location.resourcePath, textOffset)
     }
 
-    private fun startSpeech(chapter: Int, path: String?, offset: Int?) {
+    private fun startSpeech(chapter: Int, path: String?, offset: Int?, play: Boolean = true) {
         speechJob?.cancel()
-        speechSession = true
+        speechSession = play
         speechHasPosition = false
         speechJob = viewModelScope.launch {
             try {
@@ -85,7 +97,12 @@ class ReaderViewModel(private val app: ReaderApplication, private val id: String
                 speechChapter = chapter; speechPath = path; speechLength = content.length.coerceAtLeast(1)
                 val start = offset ?: if (chapter == _state.value.location.chapter) (_position.value * content.length).toInt() else 0
                 speechHasPosition = true
-                speech.play(content, start, book.publication.language)
+                textOffset = start.coerceIn(0, content.length)
+                _position.value = textOffset!!.toFloat() / speechLength
+                speechAnchorPending = true
+                dirty = true
+                if (play) speech.play(content, textOffset!!, book.publication.language)
+                else { speech.prepareContent(content, textOffset!!, book.publication.language); flush() }
             } catch (e: CancellationException) { throw e }
             catch (_: Exception) { pauseSpeech(); speech.fail() }
         }
@@ -99,11 +116,64 @@ class ReaderViewModel(private val app: ReaderApplication, private val id: String
         speech.pause()
         if (wasPlaying) {
             speechAnchorPending = true
-            navigate(speechChapter, _position.value, textOffset = textOffset, resourcePath = speechPath, fromSpeech = true)
+            // Keep the narrated anchor without replacing the document already on screen.
+            // Stale viewport captures remain blocked until the reader moves deliberately.
         }
         flush()
     }
+    fun releaseSpeechAnchor() { speechAnchorPending = false }
     fun speechRate(rate: Float) = speech.setRate(rate)
+    fun speechVoice(name: String) = speech.selectVoice(name)
+    private var sleepJob: Job? = null
+    val sleepMinutes = MutableStateFlow(0)
+    val sleepTimerSelection = MutableStateFlow(0)
+    fun speechTimer(minutes: Int) {
+        sleepJob?.cancel()
+        sleepMinutes.value = minutes
+        sleepTimerSelection.value = minutes
+        if (minutes > 0) sleepJob = viewModelScope.launch {
+            repeat(minutes) { delay(60_000); sleepMinutes.value-- }
+            sleepTimerSelection.value = 0
+            pauseSpeech()
+        }
+    }
+    fun seekSpeech(fraction: Float) {
+        if (!fraction.isFinite()) return
+        seekSpeechOffset((fraction.coerceIn(0f, 1f) * speech.state.value.content.length).toInt())
+    }
+    private fun seekSpeechOffset(target: Int) {
+        val current = speech.state.value
+        if (current.content.isEmpty()) return
+        val resume = current.playing
+        pauseSpeech()
+        val at = target.coerceIn(0, current.content.length)
+        textOffset = at
+        _position.value = at.toFloat() / current.content.length
+        speechAnchorPending = true
+        dirty = true
+        speech.seek(at)
+        if (resume) {
+            speechSession = true
+            speechHasPosition = true
+            speech.play(current.content, at, _state.value.book?.publication?.language)
+        }
+        flush()
+    }
+    fun skipSpeech(direction: Int) {
+        if (speech.state.value.content.isEmpty()) return
+        speech.sentenceTarget(direction)?.let(::seekSpeechOffset)
+    }
+    fun skipSpeechChapter(direction: Int) {
+        val book = _state.value.book ?: return
+        if (direction == 0) return
+        val chapter = _state.value.location.chapter + if (direction < 0) -1 else 1
+        if (chapter !in book.publication.chapters.indices) return
+        val resume = speech.state.value.playing || speechSession
+        pauseSpeech()
+        speech.clearContent()
+        navigate(chapter, textOffset = 0, fromSpeech = true)
+        startSpeech(chapter, null, 0, play = resume)
+    }
 
     private val _state = MutableStateFlow(ReaderUiState())
     val state = _state.asStateFlow()
@@ -168,7 +238,10 @@ class ReaderViewModel(private val app: ReaderApplication, private val id: String
     }
 
     fun navigate(chapter: Int, position: Float = 0f, fragment: String? = null, query: String? = null, textOffset: Int? = null, resourcePath: String? = null, fromSpeech: Boolean = false) {
-        if (!fromSpeech) pauseSpeech()
+        if (!fromSpeech) {
+            pauseSpeech()
+            if (speechDelegate.isInitialized()) speech.clearContent()
+        }
         val book = _state.value.book ?: return
         if (chapter !in book.publication.chapters.indices) return
         if (resourcePath != null && book.publication.resources[resourcePath]?.mediaType !in setOf("application/xhtml+xml", "text/html")) return

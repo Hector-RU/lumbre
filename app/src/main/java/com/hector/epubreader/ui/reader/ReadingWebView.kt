@@ -75,6 +75,58 @@ internal class ReadingWebView(context: Context) : WebView(context) {
     var toggle: () -> Unit = {}
     var reportTextPosition: (Int?) -> Unit = {}
     var lastTextOffset: Int? = null
+    var lastSpeechOffset: Int? = null
+    var lastSpeechRange: Pair<Int?, Int?>? = null
+    var manualNavigation: () -> Unit = {}
+    private var desiredSpeechRange: Pair<Int?, Int?> = null to null
+    private var speechPaintSerial = 0
+    private var pendingSpeechRange: Pair<Int?, Int?>? = null
+    fun applySpeechHighlight(range: Pair<Int?, Int?>, attempt: Int = 0) {
+        desiredSpeechRange = range
+        if (disposed || restoring || lastSpeechRange == range || pendingSpeechRange == range) return
+        val key = renderKey
+        val serial = ++speechPaintSerial
+        pendingSpeechRange = range
+        evaluateJavascript(speechHighlightScript(range.first, range.second)) { result ->
+            if (disposed || key != renderKey || serial != speechPaintSerial) return@evaluateJavascript
+            pendingSpeechRange = null
+            val applied = range.first == null || (result != null && result != "null" && result != "\"\"")
+            if (applied) {
+                lastSpeechRange = range
+                invalidate()
+            } else if (attempt < 3) postOnAnimation {
+                if (key == renderKey && desiredSpeechRange == range) applySpeechHighlight(range, attempt + 1)
+            }
+        }
+    }
+
+    private var speechFollowPending = false
+    /** Coalesce word callbacks without discarding every in-flight locator on fast engines. */
+    fun followSpeech(offset: Int) {
+        if (speechFollowPending || disposed || restoring) return
+        speechFollowPending = true
+        val key = renderKey
+        evaluateJavascript(TextLocatorScripts.restore(offset, horizontalMode())) { value ->
+            if (key != renderKey || disposed) return@evaluateJavascript
+            speechFollowPending = false
+            if (restoring || lastSpeechOffset == null) return@evaluateJavascript
+            val target = value?.toFloatOrNull()?.takeIf { it.isFinite() && it >= 0 }
+            if (target != null) {
+                val origin = if (horizontalMode()) scrollX else scrollY
+                val extent = if (horizontalMode()) width.toFloat() else height * 0.65f
+                if (target < origin || target >= origin + extent) {
+                    if (horizontalMode() && pageStride > 0f) {
+                        pageIndex = (target / pageStride).toInt().coerceIn(0, (pageCount - 1).coerceAtLeast(0))
+                        scrollToOffset((pageIndex * pageStride).roundToInt())
+                    } else scrollToOffset(target.roundToInt().coerceIn(0, maximum()))
+                }
+                lastTextOffset = offset
+            }
+            lastSpeechOffset?.takeIf { it != offset }?.let { latest ->
+                postOnAnimation { if (key == renderKey && lastSpeechOffset != null) followSpeech(latest) }
+            }
+        }
+    }
     private var capturePending = false
     private var captureAgain = false
     fun captureTextPosition() {
@@ -325,6 +377,7 @@ internal class ReadingWebView(context: Context) : WebView(context) {
         val dx = event.x - downX
         val dy = event.y - downY
         if (event.action == MotionEvent.ACTION_MOVE) {
+            if (abs(dx) > touchSlop || abs(dy) > touchSlop) manualNavigation()
             val horizontal = pages || paragraphs
             val alongAxis = if (horizontal) abs(dx) > abs(dy) else abs(dy) > abs(dx)
             val forward = if (horizontal) -dx else -dy
@@ -395,6 +448,7 @@ internal class ReadingWebView(context: Context) : WebView(context) {
     private fun scrollToOffset(value: Int) { if (horizontalMode()) scrollTo(value, 0) else scrollTo(0, value) }
     fun step(direction: Int, origin: Int = offset()) {
         if (restoring) return
+        manualNavigation()
         if (horizontalMode() && (viewportAnimating || resizePosition != null)) {
             pendingResizeTurns += direction
             return
@@ -475,6 +529,7 @@ internal class ReadingWebView(context: Context) : WebView(context) {
         }
     }
     fun seek(fraction: Float) {
+        manualNavigation()
         if (horizontalMode()) evaluateJavascript("window.readerReadingAnchor = null", null)
         val resizing = resizePosition != null
         val token = ++resizeToken
@@ -485,6 +540,11 @@ internal class ReadingWebView(context: Context) : WebView(context) {
         } else restore(fraction)
     }
     fun beginRender() {
+        lastSpeechOffset = null
+        lastSpeechRange = null
+        pendingSpeechRange = null
+        speechPaintSerial++
+        speechFollowPending = false
         cancelTurn()
         clearResizeTransition()
         resizeToken++
@@ -570,6 +630,8 @@ internal class ReadingWebView(context: Context) : WebView(context) {
         fun finish() {
             resizePosition = null
             resizeVerticalOffset = null
+            lastSpeechRange = null
+            applySpeechHighlight(desiredSpeechRange)
             lastKnownFraction = fraction()
             reportPosition(lastKnownFraction)
             if (!runPendingPageTurns()) revealResizedPage(token, key)

@@ -501,17 +501,27 @@ minSdk `26` and targetSdk `37`; no app, schema or backup changes are needed for 
 [Android verification run 39319038583](https://github.com/Hector-RU/lumbre/actions/runs/39319038583)
 ran on the exact published commit on 19 October. The build job successfully ran JVM tests,
 debug/release Lint and debug/release/instrumentation APK builds. The API 26 device job
-completed `connectedDebugAndroidTest` successfully; its test counts were not independently
-recounted in this audit. The API 37 job also appeared green, but its log states
+reported success, but its JUnit report contains 40 tests: 39 passed and the opt-in
+`DeviceSpeechTest` assumption was recorded as a failure rather than a skip. The first PR
+run reproduced that same result. The API 37 tag job also appeared green, but its log states
 `Failed to install APK` and `Requested internal only, but not enough space`.
 That job is not evidence of passing device tests. The 8 locally verified API 37 speech
 tests above remain separate evidence; no full API 37 CI pass is claimed.
 
 The integration workflow allocates a 6 GiB emulator data partition and checks that JUnit
 reports contain successfully executed tests and no failures/errors. Missing reports, empty
-suites and all-skipped runs fail the check. Device jobs also run on pull requests so that
-integration receives fresh API 26/37 results. Physical TalkBack, audible engine quality and
+suites and all-skipped runs fail the check. Automatic device runs explicitly exclude
+`DeviceSpeechTest`; real-engine validation remains available by selecting that class with
+`-Pandroid.testInstrumentationRunnerArguments.realSpeech=true` on a prepared device.
+Device jobs also run on pull requests so that integration receives fresh API 26/37 results.
+Physical TalkBack, audible engine quality and
 signed upgrades with populated data remain outside these automated checks.
+
+The initial PR API 37 job and one isolated retry failed before tests with
+`Can't find service: package`, unlike the release's earlier storage failure. The workflow
+now builds the device APKs before emulator startup, stops the build daemon and gives the
+emulator 4 GiB RAM. Device logcat and storage diagnostics are retained with test reports.
+These infrastructure failures are not application test results.
 
 The published `v1.4` tag, release body, signed APK and checksum are retained unchanged.
 The published APK asset digest is

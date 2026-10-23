@@ -523,6 +523,12 @@ now builds the device APKs before emulator startup, stops the build daemon and g
 emulator 4 GiB RAM. Device logcat and storage diagnostics are retained with test reports.
 These infrastructure failures are not application test results.
 
+The next API 37 run installed the app but began 39 tests while Android user storage was
+still locked (logcat: `user not unlocked`); 38 failed to resolve activities or access data.
+The device script now waits for user 0 to reach `RUNNING_UNLOCKED` and for the package
+service to respond on three consecutive checks, with a 180-second limit. Boot completion
+alone is insufficient readiness evidence for this emulator image.
+
 The published `v1.4` tag, release body, signed APK and checksum are retained unchanged.
 The published APK asset digest is
 `72de99fbc38c1bc853a7363876bc7705801191b11a5a059e236f1860a87293f7` (SHA-256).

@@ -20,6 +20,7 @@ jobs:
           java-version: '25'
       - uses: android-actions/setup-android@v3
         with:
+          cmdline-tools-version: '15859902' # Command-line Tools 22.0
           packages: platform-tools
       - uses: gradle/actions/setup-gradle@v6
       - run: sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0'
@@ -50,7 +51,16 @@ jobs:
           java-version: '25'
       - uses: android-actions/setup-android@v3
         with:
+          cmdline-tools-version: '15859902' # Command-line Tools 22.0
           packages: platform-tools
+      - name: Use pinned tools when the emulator action prepends latest
+        run: |
+          test -x "$ANDROID_HOME/cmdline-tools/15859902/bin/avdmanager"
+          if [ -e "$ANDROID_HOME/cmdline-tools/latest" ] || [ -L "$ANDROID_HOME/cmdline-tools/latest" ]; then
+            mv "$ANDROID_HOME/cmdline-tools/latest" "$ANDROID_HOME/cmdline-tools/runner-preinstalled"
+          fi
+          ln -s "$ANDROID_HOME/cmdline-tools/15859902" "$ANDROID_HOME/cmdline-tools/latest"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --version
       - uses: gradle/actions/setup-gradle@v6
       - run: sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0'
       - name: Build device APKs before starting the emulator
@@ -71,6 +81,11 @@ jobs:
           ram-size: 4096M
           # API 37 previously could not install the APK with the default data partition.
           disk-size: 6G
+          emulator-options: -no-window -gpu software -no-snapshot -noaudio -no-boot-anim
+          pre-emulator-launch-script: |
+            mkdir -p test-artifacts/ci
+            cp "$ANDROID_AVD_HOME/test.ini" test-artifacts/ci/avd.ini
+            grep -Fx 'target=android-${{ matrix.api }}' "$ANDROID_AVD_HOME/test.ini"
           # Motion regressions verify the real resize snapshot and page-turn animations.
           disable-animations: false
           script: bash scripts/verify_android_device.sh

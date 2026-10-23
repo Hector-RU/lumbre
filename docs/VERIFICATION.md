@@ -529,6 +529,15 @@ The device script now waits for user 0 to reach `RUNNING_UNLOCKED` and for the p
 service to respond on three consecutive checks, with a 180-second limit. Boot completion
 alone is insufficient readiness evidence for this emulator image.
 
+Deeper logcat inspection identifies recurring SurfaceFlinger aborts in `mapper.ranchu`
+with `hasReadColorBufferDma`, restarting the Android framework. The action prepends the
+runner's preinstalled Command-line Tools 12.0 through `cmdline-tools/latest`, overriding
+the newer tools supplied by setup-android. The same crash and malformed API 37 AVD targets
+are reproduced in [the upstream action issue](https://github.com/ReactiveCircus/android-emulator-runner/issues/482).
+CI now pins Command-line Tools 22.0 (archive `15859902`), points `latest` at those tools,
+uses software graphics and verifies the generated AVD target before launch. The original
+runner tools are retained in a separate directory for the lifetime of the CI job.
+
 The published `v1.4` tag, release body, signed APK and checksum are retained unchanged.
 The published APK asset digest is
 `72de99fbc38c1bc853a7363876bc7705801191b11a5a059e236f1860a87293f7` (SHA-256).

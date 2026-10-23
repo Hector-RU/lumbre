@@ -457,3 +457,128 @@ timeout; it was stopped and its log retained. The final run retried the nullable
 with the emulator's original inactive accessibility setting and empty enabled-services value,
 both confirmed after completion. All 33 tests passed with no skips or disabled assertions.
 Machine-readable final summary: `test-artifacts/roadmap-validation.json`.
+
+## 19 October 2026 — Lumbre 1.4 release
+
+Android versionName `1.4`, versionCode `5`; Room v5 and backup v4 are unchanged.
+
+| Check | Result |
+| --- | --- |
+| JVM tests (`testDebugUnitTest`) | 46 passed, 0 failures/errors |
+| Debug and release Lint | 0 errors / 27 warnings per variant |
+| Debug, release and instrumentation APK builds | Passed |
+| Targeted Android regression tests | 8 passed on emulator API 37 |
+| Release APK metadata | `com.hector.epubreader`, versionName `1.4`, versionCode `5` |
+| APK signatures | v2/v3 verified; certificate matches signed 1.3 |
+| APK alignment | Verified with `zipalign -c -P 16 -v 4` |
+
+The targeted device run includes `ReaderSpeechTest`, `SpeechHighlightTest` and
+`SpeechPlayerTest`: playback completion, unsupported-language handling, voice fallback,
+sentence/chapter navigation, preserving paused narration against stale WebView captures,
+non-destructive sentence shading, rendered-book continuity and reachable player controls.
+The opt-in real-engine `DeviceSpeechTest` was not run.
+
+Build evidence: `test-artifacts/release-1.4-build.log`.
+Device evidence: `test-artifacts/release-1.4-speech-tests.log`.
+Packaging evidence: `app/build/outputs/release-v1.4/`, including the signed APK,
+SHA-256 checksum, signature/alignment reports and source metadata. Signing material remains
+outside the repository. The certificate SHA-256 remains
+`09363ff5326e5eff4808da394cececf804e271fe803ee832e59f30710c948f7c`.
+
+This local run is targeted verification of the 1.4 changes. The full Android suite, API 26,
+a signed upgrade with populated user data, physical-device TalkBack and audible voice quality
+were not rerun for this release; earlier 1.3 results above remain historical evidence.
+
+## 22 October 2026 — integration audit of published 1.4
+
+Before integration, `main` was `57531e6a627675a5cf2010793d36ae5f578655b3` and
+`v1.4` / `codex/lumbre-1.3-improvements` were
+`962caac1e1b29a55efc94da98b26d1719910e295`: one commit ahead, with no divergence.
+The integration branch retains that original release commit as an ancestor.
+Android configuration and packaging agree on versionName `1.4`, versionCode `5`,
+minSdk `26` and targetSdk `37`; no app, schema or backup changes are needed for integration.
+
+[Android verification run 39319038583](https://github.com/Hector-RU/lumbre/actions/runs/39319038583)
+ran on the exact published commit on 19 October. The build job successfully ran JVM tests,
+debug/release Lint and debug/release/instrumentation APK builds. The API 26 device job
+reported success, but its JUnit report contains 40 tests: 39 passed and the opt-in
+`DeviceSpeechTest` assumption was recorded as a failure rather than a skip. The first PR
+run reproduced that same result. The API 37 tag job also appeared green, but its log states
+`Failed to install APK` and `Requested internal only, but not enough space`.
+That job is not evidence of passing device tests. The 8 locally verified API 37 speech
+tests above remain separate evidence; no full API 37 CI pass is claimed.
+
+The integration workflow allocates a 6 GiB emulator data partition and checks that JUnit
+reports contain successfully executed tests and no failures/errors. Missing reports, empty
+suites and all-skipped runs fail the check. Automatic device runs explicitly exclude
+`DeviceSpeechTest`; real-engine validation remains available by selecting that class with
+`-Pandroid.testInstrumentationRunnerArguments.realSpeech=true` on a prepared device.
+Device jobs also run on pull requests so that integration receives fresh API 26/37 results.
+Physical TalkBack, audible engine quality and
+signed upgrades with populated data remain outside these automated checks.
+
+The initial PR API 37 job and one isolated retry failed before tests with
+`Can't find service: package`, unlike the release's earlier storage failure. The workflow
+now builds the device APKs before emulator startup, stops the build daemon and gives the
+emulator 4 GiB RAM. Device logcat and storage diagnostics are retained with test reports.
+These infrastructure failures are not application test results.
+
+The next API 37 run installed the app but began 39 tests while Android user storage was
+still locked (logcat: `user not unlocked`); 38 failed to resolve activities or access data.
+The device script now waits for user 0 to reach `RUNNING_UNLOCKED` and for the package
+service to respond on three consecutive checks, with a 180-second limit. Boot completion
+alone is insufficient readiness evidence for this emulator image.
+
+Deeper logcat inspection identifies recurring SurfaceFlinger aborts in `mapper.ranchu`
+with `hasReadColorBufferDma`, restarting the Android framework. The action prepends the
+runner's preinstalled Command-line Tools 12.0 through `cmdline-tools/latest`, overriding
+the newer tools supplied by setup-android. The same crash and malformed API 37 AVD targets
+are reproduced in [the upstream action issue](https://github.com/ReactiveCircus/android-emulator-runner/issues/482).
+CI now pins Command-line Tools 22.0 (archive `15859902`), points `latest` at those tools,
+uses software graphics and verifies the generated AVD target before launch. The original
+runner tools are retained in a separate directory for the lifetime of the CI job.
+
+The published `v1.4` tag, release body, signed APK and checksum are retained unchanged.
+The published APK asset digest is
+`72de99fbc38c1bc853a7363876bc7705801191b11a5a059e236f1860a87293f7` (SHA-256).
+
+Fresh local integration checks on 22 October passed: 46 JVM tests with no failures,
+errors or skips; debug/release Lint; and debug, release and instrumentation APK builds.
+The report guard was exercised with missing, empty, all-skipped, failed, runner-error,
+malformed, passing-with-skip and nested passing JUnit fixtures; all 8 expectations passed.
+No local device was connected, so device execution is delegated to the PR workflow.
+
+## 23 October 2026 — integration gate results
+
+The [integration workflow](https://github.com/Hector-RU/lumbre/actions/runs/39900982165)
+tested application source from `4089f9791d012449fdd2b4a7aee935c1352f56cc`.
+Its app and packaging sources are identical to published `v1.4`; subsequent audit-only
+documentation changes do not alter those sources.
+
+| Check | Observed result |
+| --- | --- |
+| Build gate: JVM, debug/release Lint and APK builds | Passed; 46 JVM tests |
+| API 26 automatic device suite | 39 passed, 0 failed/errors/skipped |
+| API 37 automatic suite, first attempt with pinned tools | 38 passed, 1 failed |
+| API 37 automatic suite, isolated retry | 37 passed, 2 failed, 0 errors/skipped |
+| AVD target validation | `android-26` and `android-37.0` verified |
+| Downloaded published APK | Attached SHA-256 matches; alignment and v2/v3 signatures verified |
+
+API 37 failures in the retry:
+
+- `AnnotationUiTest.longPressOpensEditorAndNotesCanBeSavedEditedAndDeleted` times out
+  at line 109 waiting for the annotation accessibility action after the native long press.
+- `ReaderGestureTest.horizontalModesShowCompleteLastPage` reports
+  `pages last page is clamped: x=39897, count=38, stride=1080.0`.
+
+Neither test was removed or relaxed. These are unresolved device gates, distinct from the
+earlier emulator setup failures. [PR #1](https://github.com/Hector-RU/lumbre/pull/1) remains
+a draft and has not been merged. Product changes to resolve these failures are outside the
+published 1.4 commit retained by this integration proposal.
+
+The downloaded APK also reports versionName `1.4`, versionCode `5`, minSdk `26` and
+targetSdk `37`, and certificate SHA-256
+`09363ff5326e5eff4808da394cececf804e271fe803ee832e59f30710c948f7c`.
+Its SHA-256 remains `72de99fbc38c1bc853a7363876bc7705801191b11a5a059e236f1860a87293f7`.
+The release body, update timestamp, asset IDs, sizes and digests were compared before and
+after the audit and are unchanged.

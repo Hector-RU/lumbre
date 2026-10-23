@@ -1,5 +1,29 @@
 # Lumbre release notes
 
+## 1.4 — 19 October 2026
+
+- Read aloud with an expanded player showing the book cover, chapter, current sentence,
+  surrounding text, narration position and estimated time. A compact player keeps controls
+  available while reading, including when the reader controls are hidden.
+- Seek within narration, move between sentences and chapters, choose an installed offline
+  voice and adjust playback speed. A sleep timer pauses playback after 5, 15, 30 or 60 minutes.
+- The reader shades the current spoken sentence without changing publisher markup, follows
+  narration and retains the spoken position when pausing or returning to reading.
+- Speech language matching handles ISO-639-2 and underscore-separated EPUB language tags.
+  Failed voices fall back to other installed voices, with specific errors and Android voice
+  settings/data shortcuts when playback cannot continue.
+- Refreshed launcher artwork includes adaptive and round icons and a Play Store image.
+- Added regression coverage for sentence boundaries, language matching, voice fallback,
+  playback navigation, sentence highlighting and player controls.
+
+Android: versionName `1.4`, versionCode `5`, minSdk `26`, targetSdk `37`.
+Read-aloud remains foreground-only and requires installed offline voice data.
+Room v5 and backup v4 are unchanged.
+
+See [verification](VERIFICATION.md#22-october-2026--integration-audit-of-published-14)
+for the subsequent integration audit and the distinction between local release checks and CI
+device results. The published tag and signed release assets are unchanged.
+
 ## 1.3 — 16 October 2026
 
 - Reflowable EPUBs may use standard IDPF-obfuscated publisher fonts. Resources are decoded on

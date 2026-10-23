@@ -66,6 +66,9 @@ private val annotationDraftSaver = listSaver<AnnotationEntity?, Any>(
 @Composable
 fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((ReaderPreferences) -> ReaderPreferences) -> Unit, back: () -> Unit, settings: () -> Unit) {
     val speech by vm.speechState.collectAsStateWithLifecycle()
+    val sleepMinutes by vm.sleepMinutes.collectAsStateWithLifecycle()
+    val sleepTimerSelection by vm.sleepTimerSelection.collectAsStateWithLifecycle()
+    var speechVisible by rememberSaveable { mutableStateOf(false) }
     val exporting by vm.exportingAnnotations.collectAsStateWithLifecycle()
     val exportMessage by vm.exportMessage.collectAsStateWithLifecycle()
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/markdown")) { uri -> uri?.let(vm::exportAnnotations) }
@@ -108,6 +111,7 @@ fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((
         lifecycle.addObserver(observer)
         onDispose { lifecycle.removeObserver(observer); vm.pauseSpeech(); vm.flush() }
     }
+    LaunchedEffect(speech.error) { if (speech.error && speechVisible) sheet = "speech" }
     LaunchedEffect(controls, sheet, activity, preferences.palette, lightInterface) {
         if (activity == null) return@LaunchedEffect
         val controller = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
@@ -140,6 +144,9 @@ fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((
                 onPreviousChapter = { if (state.location.chapter > 0) vm.navigate(state.location.chapter - 1, 1f) },
                 seekRequest = seekRequest,
                 onChapterPull = { chapterPull = it }, onTextPosition = vm::textPositionChanged, currentTextOffset = vm::currentTextOffset, onResourceLink = vm::openResource, annotations = annotations,
+                onManualNavigation = vm::releaseSpeechAnchor,
+                speechOffset = speech.offset.takeIf { speechVisible && speech.content.isNotEmpty() },
+                speechStart = speech.sentenceStart.takeIf { speech.playing }, speechEnd = speech.sentenceEnd.takeIf { speech.playing },
                 onSelection = { start, end -> scope.launch {
                     try {
                         val annotation = vm.createAnnotation(start, end)
@@ -190,7 +197,7 @@ fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((
                 }, actions = {
                     IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, stringResource(R.string.more_options)) }
                     DropdownMenu(menu, { menu = false }) {
-                        DropdownMenuItem(text = { Text(stringResource(R.string.read_aloud)) }, onClick = { menu = false; vm.prepareSpeech(); sheet = "speech" })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.read_aloud)) }, onClick = { menu = false; vm.prepareSpeech(); speechVisible = true; sheet = "speech" })
                         DropdownMenuItem(text = { Text(stringResource(R.string.export_annotations)) }, enabled = annotations.isNotEmpty() && !exporting,
                             onClick = { menu = false; exportLauncher.launch("lumbre-notes.md") })
                         DropdownMenuItem(text = { Text(stringResource(R.string.annotations)) }, onClick = { menu = false; sheet = "annotations" })
@@ -202,8 +209,13 @@ fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((
             AnimatedVisibility(controls, modifier = Modifier.align(Alignment.BottomCenter),
                 enter = slideInVertically(tween(240, easing = controlsEasing)) { it } + fadeIn(tween(180)),
                 exit = slideOutVertically(tween(180, easing = controlsEasing)) { it } + fadeOut(tween(120))) {
-                Surface(tonalElevation = 3.dp) {
-                    Column(Modifier.navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                Column(Modifier.navigationBarsPadding()) {
+                        if (speechVisible) SpeechMiniPlayer(book.record.title, book.publication.chapters[state.location.chapter].title,
+                            book.record.coverPath, speech, expand = { sheet = "speech" },
+                            toggle = { if (speech.playing) vm.pauseSpeech() else { vm.playSpeech(); if (speech.error) sheet = "speech" } },
+                            skip = vm::skipSpeech, close = { vm.pauseSpeech(); vm.speechTimer(0); speechVisible = false })
+                        Surface(tonalElevation = 3.dp) {
+                        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = { vm.navigate(state.location.chapter - 1) }, enabled = state.location.chapter > 0) { Icon(Icons.AutoMirrored.Outlined.NavigateBefore, stringResource(R.string.previous_chapter)) }
                             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -218,6 +230,7 @@ fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((
                         val progressLabel = stringResource(R.string.sort_progress)
                         Slider(value = slider, onValueChange = {
                             dragging = true
+                            vm.releaseSpeechAnchor()
                             slider = it
                             seekRequest = ReaderSeekRequest(state.location.generation, ++seekSerial, it)
                         }, onValueChangeFinished = {
@@ -228,15 +241,26 @@ fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                             IconButton(onClick = { sheet = "contents" }) { Icon(Icons.AutoMirrored.Outlined.FormatListBulleted, stringResource(R.string.contents)) }
                             IconButton(onClick = { sheet = "appearance" }) { Icon(Icons.Outlined.TextFields, stringResource(R.string.appearance)) }
+                            IconButton(onClick = { vm.prepareSpeech(); speechVisible = true; sheet = "speech" }) {
+                                Icon(Icons.Outlined.Headphones, stringResource(R.string.read_aloud), tint = if (speech.playing) MaterialTheme.colorScheme.primary else LocalContentColor.current)
+                            }
                             IconButton(onClick = { sheet = "search" }) { Icon(Icons.Outlined.Search, stringResource(R.string.search_book)) }
                             val marked = bookmarks.any { it.chapter == state.location.chapter && kotlin.math.abs(it.position - position) < 0.02f }
                             IconButton(onClick = { vm.toggleBookmark() }) { Icon(if (marked) Icons.Outlined.BookmarkAdded else Icons.Outlined.BookmarkAdd, stringResource(if (marked) R.string.remove_bookmark else R.string.add_bookmark)) }
+                        }
                         }
                     }
                 }
             }
         }
-        if (!controls && book != null) {
+        if (!controls && speechVisible && book != null) {
+            Box(Modifier.align(Alignment.BottomCenter).navigationBarsPadding()) {
+                SpeechMiniPlayer(book.record.title, book.publication.chapters[state.location.chapter].title, book.record.coverPath, speech,
+                    expand = { sheet = "speech" }, toggle = { if (speech.playing) vm.pauseSpeech() else vm.playSpeech() },
+                    skip = vm::skipSpeech, close = { vm.pauseSpeech(); vm.speechTimer(0); speechVisible = false })
+            }
+        }
+        if (!controls && !speechVisible && book != null) {
             Surface(Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(12.dp), color = Color(preferences.palette.background.toColorInt()).copy(alpha = 0.9f)) {
                 Text("${state.location.chapter + 1} / ${book.publication.chapters.size}", Modifier.padding(4.dp), style = MaterialTheme.typography.labelSmall, color = Color(preferences.palette.text.toColorInt()))
             }
@@ -248,20 +272,12 @@ fun ReaderScreen(vm: ReaderViewModel, preferences: ReaderPreferences, change: ((
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ) {
         when (sheet) {
-            "speech" -> Column(Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text(stringResource(R.string.read_aloud), style = MaterialTheme.typography.headlineSmall)
-                Text(stringResource(R.string.speech_description))
-                if (!speech.ready && !speech.error) LinearProgressIndicator(Modifier.fillMaxWidth())
-                if (speech.error) Text(stringResource(R.string.speech_error), color = MaterialTheme.colorScheme.error)
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(onClick = { if (speech.playing) vm.pauseSpeech() else vm.playSpeech() }, enabled = speech.ready) {
-                        Text(stringResource(if (speech.playing) R.string.speech_pause else R.string.speech_play))
-                    }
-                }
-                Text(stringResource(R.string.speech_rate, speech.rate))
-                Slider(speech.rate, vm::speechRate, valueRange = 0.5f..2f,
-                    modifier = Modifier.semantics { contentDescription = context.getString(R.string.speech_rate_label) })
-            }
+            "speech" -> SpeechPlayer(book.record.title, book.publication.chapters[state.location.chapter].title,
+                book.record.coverPath, speech, sleepMinutes,
+                toggle = { if (speech.playing) vm.pauseSpeech() else vm.playSpeech() }, seek = vm::seekSpeech,
+                skip = vm::skipSpeech, rate = vm::speechRate, voice = vm::speechVoice, timer = vm::speechTimer, retry = vm::retrySpeech,
+                chapterSkip = vm::skipSpeechChapter, canPreviousChapter = state.location.chapter > 0,
+                canNextChapter = state.location.chapter < book.publication.chapters.lastIndex, selectedTimer = sleepTimerSelection)
             "appearance" -> Column(Modifier.verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
                 ReaderSettings(preferences, change, compact = true)
                 TextButton(onClick = { sheet = null; vm.flush(); settings() }, Modifier.padding(horizontal = 16.dp)) { Text(stringResource(R.string.all_settings)) }

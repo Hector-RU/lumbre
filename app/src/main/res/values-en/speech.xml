@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="speech_close">Close player</string>
+    <string name="speech_expand">Expand player</string>
+    <string name="speech_voice">Voice</string>
+    <string name="speech_timer">Sleep timer</string>
+    <string name="speech_timer_off">Off</string>
+    <string name="speech_minutes">%1$d min</string>
+    <string name="speech_back">Previous sentence</string>
+    <string name="speech_forward">Next sentence</string>
+    <string name="speech_progress">Narration position</string>
+    <string name="speech_estimate">Estimated time</string>
+    <string name="speech_start_hint">Press play to listen from your current position.</string>
+    <string name="speech_settings">Voice settings</string>
+    <string name="speech_install">Install voice data</string>
+    <string name="speech_engine_error">Could not connect to the speech engine. Check the selected engine in Android settings and try again.</string>
+    <string name="speech_voice_error">No offline voice is available for the book language. Install its voice data in Android and try again.</string>
+    <string name="speech_audio_error">Android did not grant audio focus. Pause other playback and try again.</string>
+    <string name="speech_synthesis_error">The engine could not read this passage. Try another voice or check its data in Android.</string>
+</resources>

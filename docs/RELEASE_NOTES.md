@@ -20,6 +20,10 @@ Android: versionName `1.4`, versionCode `5`, minSdk `26`, targetSdk `37`.
 Read-aloud remains foreground-only and requires installed offline voice data.
 Room v5 and backup v4 are unchanged.
 
+See [verification](VERIFICATION.md#22-october-2026--integration-audit-of-published-14)
+for the subsequent integration audit and the distinction between local release checks and CI
+device results. The published tag and signed release assets are unchanged.
+
 ## 1.3 — 16 October 2026
 
 - Reflowable EPUBs may use standard IDPF-obfuscated publisher fonts. Resources are decoded on

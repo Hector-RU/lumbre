@@ -56,10 +56,10 @@ access to download dependencies. The installed application runs offline.
 
 - Debug: `app/build/outputs/apk/debug/app-debug.apk`, signed with the local Android debug key.
 - Ordinary Gradle release: `app/build/outputs/apk/release/app-release-unsigned.apk`.
-- Signed 1.2 distribution: `app/build/outputs/release-v1.2/lumbre-1.2.apk`; its SHA-256 is in
-  `lumbre-1.2.apk.sha256` alongside signature/alignment verification and `release.json` metadata.
-  It uses the same signing certificate as 1.1. Ordinary Gradle output remains unsigned.
-- The historical signed 1.1 distribution remains under `app/build/outputs/release-v1.1/`.
+- Signed 1.4 distribution: download `lumbre-1.4.apk` and `lumbre-1.4.apk.sha256` from the
+  [1.4 release](https://github.com/Hector-RU/lumbre/releases/tag/v1.4). Local packaging evidence
+  is under `app/build/outputs/release-v1.4/`; these generated files are not versioned.
+  Its signing certificate matches 1.3. Ordinary Gradle output remains unsigned.
 - To distribute a release, use **Generate Signed App Bundle / APK** with your own key kept outside
   the repository. No signing keys are generated and no passwords are stored in the project.
 - Install from Android Studio or with `adb install -r app/build/outputs/apk/debug/app-debug.apk`.
@@ -86,8 +86,9 @@ Storage, security, EPUB engine details and trade-offs are documented in
 ## Tests
 
 The JVM suite covers the EPUB 2/3 parser, metadata, malformed files, limits, paths, XML entities,
-sanitization, preferences and progress. The Android suite checks the DAO, bookmark cascade,
-empty library and theme selection. The run log is recorded in
+sanitization, preferences, progress, speech sentence boundaries and language matching.
+The Android suite checks the DAO, bookmark cascade, library, themes, reader behavior,
+speech playback and fallback, sentence highlighting and player controls. The run log is recorded in
 [VERIFICATION.md](docs/VERIFICATION.md).
 
 `docs/samples/lumbre-demo.epub` is an original test book with two chapters, a cover, CSS, links
@@ -99,12 +100,13 @@ Screenshots from the Android 35 emulator: [library](docs/screenshots/02-library.
 [reader](docs/screenshots/03-reader.png), [appearance](docs/screenshots/04-appearance.png),
 [search](docs/screenshots/09-search.png), [landscape](docs/screenshots/12-landscape.png).
 
-Latest verification (15 October 2026, 1.3 candidate): **42 JVM tests passing** and
-**33 Android tests passing on each of API 26 and API 37**.
-Debug/release Lint reports 0 errors and 21 warnings per variant. The environment, checks and
-manual-validation limits are recorded in [VERIFICATION.md](docs/VERIFICATION.md).
-SAF import, reading, appearance controls, table of contents, force close, restoration, search,
-bookmarks and deletion without removing the original EPUB were also checked manually.
+Lumbre 1.4 local release verification (19 October 2026): **46 JVM tests passing** and
+**8 targeted speech regression tests passing on API 37**. Debug/release Lint reports
+0 errors and 27 warnings per variant. The opt-in real-engine test was not run.
+The [tag workflow](https://github.com/Hector-RU/lumbre/actions/runs/39319038583) completed,
+but its API 37 job logged an APK installation failure despite a green status; it does not
+establish a full API 37 test pass. See [VERIFICATION.md](docs/VERIFICATION.md) for the
+separate local and CI evidence, historical 1.3 results and manual-validation limits.
 
 ## License
 
@@ -136,19 +138,21 @@ Readium was evaluated as a possible engine evolution but is not added as a depen
   Backups are unencrypted; choose a suitable storage location. App-language selection is managed by
   Android separately and is not included. Interrupted restores roll back on restart; exports may leave
   a partial provider document if interrupted. Synchronization and statistics remain pending.
-- The user reported successful manual compatibility, accessibility and backup checks. The 1.2 APK
-  is signed and verified; additional device/EPUB coverage is tracked in `docs/ROADMAP.md`.
+- Historical manual compatibility, accessibility and backup checks are documented in
+  [VERIFICATION.md](docs/VERIFICATION.md). Signed-upgrade testing with populated data,
+  physical-device TalkBack and audible voice quality were not revalidated for 1.4;
+  additional device/EPUB coverage is tracked in `docs/ROADMAP.md`.
 
 See [ROADMAP.md](docs/ROADMAP.md) for completed work, priorities and release gates.
 
 
-## 1.3 validation
+## 1.4 validation
 
 See [COMPATIBILITY.md](docs/COMPATIBILITY.md) for the device/publication acceptance matrix,
 [VERIFICATION.md](docs/VERIFICATION.md) for actual results and [.github/workflows/android.yml](.github/workflows/android.yml)
 for CI. TTS pauses when leaving the reader and requires an installed offline voice for the book
 language. It is not a background playback service. Each book can belong to one named collection.
 
-Signed release: `app/build/outputs/release-v1.3/lumbre-1.3.apk`. Its certificate matches 1.2;
-the signed upgrade preserves reading data. Packaging checksums and provenance sit beside the APK.
-Download the APK and checksum from the [1.3 release](https://github.com/Hector-RU/lumbre/releases/tag/v1.3).
+Signed release: `app/build/outputs/release-v1.4/lumbre-1.4.apk`. Its certificate matches 1.3;
+Room v5 and backup v4 are unchanged. Packaging checksums and provenance sit beside the local APK.
+Download the APK and checksum from the [1.4 release](https://github.com/Hector-RU/lumbre/releases/tag/v1.4).

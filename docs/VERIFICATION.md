@@ -485,6 +485,40 @@ SHA-256 checksum, signature/alignment reports and source metadata. Signing mater
 outside the repository. The certificate SHA-256 remains
 `09363ff5326e5eff4808da394cececf804e271fe803ee832e59f30710c948f7c`.
 
-This is targeted verification of the 1.4 changes. The full Android suite, API 26,
+This local run is targeted verification of the 1.4 changes. The full Android suite, API 26,
 a signed upgrade with populated user data, physical-device TalkBack and audible voice quality
 were not rerun for this release; earlier 1.3 results above remain historical evidence.
+
+## 22 October 2026 — integration audit of published 1.4
+
+Before integration, `main` was `57531e6a627675a5cf2010793d36ae5f578655b3` and
+`v1.4` / `codex/lumbre-1.3-improvements` were
+`962caac1e1b29a55efc94da98b26d1719910e295`: one commit ahead, with no divergence.
+The integration branch retains that original release commit as an ancestor.
+Android configuration and packaging agree on versionName `1.4`, versionCode `5`,
+minSdk `26` and targetSdk `37`; no app, schema or backup changes are needed for integration.
+
+[Android verification run 39319038583](https://github.com/Hector-RU/lumbre/actions/runs/39319038583)
+ran on the exact published commit on 19 October. The build job successfully ran JVM tests,
+debug/release Lint and debug/release/instrumentation APK builds. The API 26 device job
+completed `connectedDebugAndroidTest` successfully; its test counts were not independently
+recounted in this audit. The API 37 job also appeared green, but its log states
+`Failed to install APK` and `Requested internal only, but not enough space`.
+That job is not evidence of passing device tests. The 8 locally verified API 37 speech
+tests above remain separate evidence; no full API 37 CI pass is claimed.
+
+The integration workflow allocates a 6 GiB emulator data partition and checks that JUnit
+reports contain successfully executed tests and no failures/errors. Missing reports, empty
+suites and all-skipped runs fail the check. Device jobs also run on pull requests so that
+integration receives fresh API 26/37 results. Physical TalkBack, audible engine quality and
+signed upgrades with populated data remain outside these automated checks.
+
+The published `v1.4` tag, release body, signed APK and checksum are retained unchanged.
+The published APK asset digest is
+`72de99fbc38c1bc853a7363876bc7705801191b11a5a059e236f1860a87293f7` (SHA-256).
+
+Fresh local integration checks on 22 October passed: 46 JVM tests with no failures,
+errors or skips; debug/release Lint; and debug, release and instrumentation APK builds.
+The report guard was exercised with missing, empty, all-skipped, failed, runner-error,
+malformed, passing-with-skip and nested passing JUnit fixtures; all 8 expectations passed.
+No local device was connected, so device execution is delegated to the PR workflow.

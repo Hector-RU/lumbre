@@ -108,6 +108,11 @@ but its API 37 job logged an APK installation failure despite a green status; it
 establish a full API 37 test pass. See [VERIFICATION.md](docs/VERIFICATION.md) for the
 separate local and CI evidence, historical 1.3 results and manual-validation limits.
 
+Integration audit (23 October 2026): the full automatic suite passed **39 tests on API 26**.
+The latest API 37 retry passed **37 of 39 tests**; annotation-action discovery and last-page
+clamping failed. [PR #1](https://github.com/Hector-RU/lumbre/pull/1) records the results and
+remains a draft pending resolution of those checks. See [verification](docs/VERIFICATION.md).
+
 ## License
 
 Lumbre is distributed under the Apache License 2.0; see [LICENSE](LICENSE).

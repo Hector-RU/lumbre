@@ -547,3 +547,38 @@ errors or skips; debug/release Lint; and debug, release and instrumentation APK 
 The report guard was exercised with missing, empty, all-skipped, failed, runner-error,
 malformed, passing-with-skip and nested passing JUnit fixtures; all 8 expectations passed.
 No local device was connected, so device execution is delegated to the PR workflow.
+
+## 23 October 2026 — integration gate results
+
+The [integration workflow](https://github.com/Hector-RU/lumbre/actions/runs/39900982165)
+tested application source from `4089f9791d012449fdd2b4a7aee935c1352f56cc`.
+Its app and packaging sources are identical to published `v1.4`; subsequent audit-only
+documentation changes do not alter those sources.
+
+| Check | Observed result |
+| --- | --- |
+| Build gate: JVM, debug/release Lint and APK builds | Passed; 46 JVM tests |
+| API 26 automatic device suite | 39 passed, 0 failed/errors/skipped |
+| API 37 automatic suite, first attempt with pinned tools | 38 passed, 1 failed |
+| API 37 automatic suite, isolated retry | 37 passed, 2 failed, 0 errors/skipped |
+| AVD target validation | `android-26` and `android-37.0` verified |
+| Downloaded published APK | Attached SHA-256 matches; alignment and v2/v3 signatures verified |
+
+API 37 failures in the retry:
+
+- `AnnotationUiTest.longPressOpensEditorAndNotesCanBeSavedEditedAndDeleted` times out
+  at line 109 waiting for the annotation accessibility action after the native long press.
+- `ReaderGestureTest.horizontalModesShowCompleteLastPage` reports
+  `pages last page is clamped: x=39897, count=38, stride=1080.0`.
+
+Neither test was removed or relaxed. These are unresolved device gates, distinct from the
+earlier emulator setup failures. [PR #1](https://github.com/Hector-RU/lumbre/pull/1) remains
+a draft and has not been merged. Product changes to resolve these failures are outside the
+published 1.4 commit retained by this integration proposal.
+
+The downloaded APK also reports versionName `1.4`, versionCode `5`, minSdk `26` and
+targetSdk `37`, and certificate SHA-256
+`09363ff5326e5eff4808da394cececf804e271fe803ee832e59f30710c948f7c`.
+Its SHA-256 remains `72de99fbc38c1bc853a7363876bc7705801191b11a5a059e236f1860a87293f7`.
+The release body, update timestamp, asset IDs, sizes and digests were compared before and
+after the audit and are unchanged.

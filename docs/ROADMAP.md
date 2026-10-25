@@ -14,6 +14,9 @@ Updated: 25 October 2026 (America/Santo_Domingo).
   The follow-up supplies explicit touchscreen input to the annotation regression;
   full local suites now pass 39/39 on both API 26 and API 37, with five additional
   consecutive annotation passes. Obtain a fresh passing remote device CI run.
+- Annotation input correction `52851db` and its verification documentation are
+  integrated into `main` on 25 October. This integration does not establish a new
+  remote device result; local passing runs and historical CI failures remain distinct.
 - Physical-device TalkBack, audible offline voices, signed upgrades with populated data
   and cloud SAF providers remain manual acceptance gates for 1.4.
 

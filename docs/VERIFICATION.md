@@ -682,3 +682,9 @@ and `annotation-fix-api37-full.log`. Device suites exclude only opt-in
 `DeviceSpeechTest`, matching CI. Screenshot UiAutomation remains disabled.
 Earlier audit/CI failures above remain historical; local results do not replace
 a fresh remote API 37 CI gate or physical-device acceptance.
+
+Integration: commit `52851db232d0e4535cab905bc194f6bc34d5c260`, containing the
+explicit-touch correction and the results above, was fast-forwarded into `main`
+on 25 October. Integration adds no further application/test changes; the subsequent
+documentation update only records this status. A push to `main` runs the build gate;
+the workflow's device jobs require a PR, tag or manual dispatch.

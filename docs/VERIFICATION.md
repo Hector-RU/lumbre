@@ -572,9 +572,10 @@ API 37 failures in the retry:
   `pages last page is clamped: x=39897, count=38, stride=1080.0`.
 
 Neither test was removed or relaxed. These are unresolved device gates, distinct from the
-earlier emulator setup failures. [PR #1](https://github.com/Hector-RU/lumbre/pull/1) remains
-a draft and has not been merged. Product changes to resolve these failures are outside the
-published 1.4 commit retained by this integration proposal.
+earlier emulator setup failures. At the time of this run,
+[PR #1](https://github.com/Hector-RU/lumbre/pull/1) remained a draft. It was subsequently
+merged on 23 October; see the repository audit below. Product changes to resolve these
+failures are outside the published 1.4 commit retained by the integration.
 
 The downloaded APK also reports versionName `1.4`, versionCode `5`, minSdk `26` and
 targetSdk `37`, and certificate SHA-256
@@ -582,3 +583,55 @@ targetSdk `37`, and certificate SHA-256
 Its SHA-256 remains `72de99fbc38c1bc853a7363876bc7705801191b11a5a059e236f1860a87293f7`.
 The release body, update timestamp, asset IDs, sizes and digests were compared before and
 after the audit and are unchanged.
+
+## 25 October 2026 — repository and regression audit
+
+Fetched `origin` and verified that published 1.4 commit
+`962caac1e1b29a55efc94da98b26d1719910e295` is an ancestor of `origin/main`
+(`47db6361e445bce5a341c327bdc64a9f42d95a36`). There are no application-source
+differences between those commits. The original local branch was clean and matched
+its remote; audit documentation is maintained on `codex/verification-audit`, based
+on current `origin/main`.
+
+[PR #1](https://github.com/Hector-RU/lumbre/pull/1) merged on 23 October 2026.
+The [main push workflow](https://github.com/Hector-RU/lumbre/actions/runs/39930331087)
+passed the build gate but skipped devices. The
+[final PR workflow](https://github.com/Hector-RU/lumbre/actions/runs/39903521027)
+passed build and API 26, but failed API 37. Therefore the main workflow's green
+status does not establish a passing full device matrix. The 23 October counts and
+named failures above belong to run `39900982165`, not the later final PR run.
+
+Fresh local checks use JDK 25, the existing project SDK and the unchanged app source:
+
+| Check | Observed result |
+| --- | --- |
+| JVM, forced task execution | 46 passed, 0 failures/errors/skips |
+| Debug/release Lint | 0 errors, 28 warnings per variant |
+| Debug/release/instrumentation APK builds | Passed |
+| Local API 37 automatic suite | 38 passed, 1 failed, 0 errors/skips; 39 tests, 264.396 seconds |
+
+Command: `gradlew.bat testDebugUnitTest lintDebug lintRelease assembleDebug assembleRelease assembleDebugAndroidTest --rerun-tasks --console=plain`.
+All 139 tasks executed; build completed successfully in 3m 9s.
+Build evidence: ignored `test-artifacts/audit-2026-10-25-build.log`; machine-readable
+JVM reports: `app/build/test-results/testDebugUnitTest/`; Lint XML/HTML:
+`app/build/reports/lint-results-{debug,release}.*`.
+
+The connected local emulator is Android 17 / API 37, serial `emulator-5554`,
+WebView `149.0.7827.5`, with accessibility initially inactive and user 0 unlocked.
+The automatic suite excludes only opt-in `DeviceSpeechTest`, matching CI.
+Physical audible voices, TalkBack, cloud SAF providers and a signed upgrade with
+populated user data are not established by this audit.
+
+Connected command: `gradlew.bat connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notClass=com.hector.epubreader.DeviceSpeechTest --console=plain`.
+The task correctly exited with failure. `AnnotationUiTest.longPressOpensEditorAndNotesCanBeSavedEditedAndDeleted`
+timed out at line 109 after 10 seconds waiting for the selected-text accessibility
+action following a native long press. No assertion was removed or relaxed.
+`ReaderGestureTest.horizontalModesShowCompleteLastPage` passed locally; this does not
+resolve or supersede its earlier CI failure. Accessibility remained inactive after
+the run. API 26 was not rerun locally.
+
+Device evidence: ignored `test-artifacts/audit-2026-10-25-android.log`,
+`app/build/outputs/androidTest-results/connected/debug/TEST-Pixel_8(AVD) - 17.xml`
+and `app/build/reports/androidTests/connected/debug/index.html`.
+The repository changes are documentation only. All tests have **not** passed;
+the annotation regression and API 37 CI gate remain open.

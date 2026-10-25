@@ -1,6 +1,21 @@
 # Lumbre roadmap
 
-Updated: 16 October 2026 (America/Santo_Domingo).
+Updated: 25 October 2026 (America/Santo_Domingo).
+
+## Current delivery status — Lumbre 1.4
+
+- Published 1.4 (versionCode 5) and integration PR #1 are included in `main` at
+  `47db6361e445bce5a341c327bdc64a9f42d95a36`; the PR merged on 23 October.
+- The main CI build gate passed, but device jobs were skipped for that push.
+  API 26 passed the full 39-test automatic suite in PR CI; API 37 remains a failing gate.
+  See `VERIFICATION.md` for workflow links and the separate local audit results.
+- The 25 October local rerun passed 46 JVM tests, all APK builds and Lint
+  (0 errors / 28 warnings per variant). API 37 passed 38 of 39 automatic tests;
+  fix the annotation-action timeout and obtain a passing full API 37 CI run.
+- Physical-device TalkBack, audible offline voices, signed upgrades with populated data
+  and cloud SAF providers remain manual acceptance gates for 1.4.
+
+The sections below retain the implementation history for 1.2 and 1.3.
 
 ## Included in Lumbre 1.2
 
@@ -33,7 +48,7 @@ Android System WebView versions, TalkBack behavior and local/cloud SAF providers
 cover include unusual publisher CSS, large books, low storage, malformed backups and interruption.
 The user's successful manual acceptance above remains recorded.
 
-## Next iteration implemented (unreleased)
+## Included in Lumbre 1.3
 
 - IDPF font obfuscation is decoded on demand, limited to manifest font resources. Unknown
   encryption algorithms, including DRM and Adobe legacy obfuscation, remain unsupported.
@@ -91,8 +106,8 @@ The user's successful manual acceptance above remains recorded.
   saves progress and pauses on screen exit or audio-focus loss. Only installed offline voices
   matching the book language are eligible. Short chunks bound replay on engines without word
   callbacks. Android engine/voice availability and audible quality still need physical testing.
-- GitHub Actions runs JVM/Lint/build on changes, with API 26/37 instrumentation on tags/manual
-  dispatch. Configuration is prepared locally; remote execution requires pushing the workflow.
+- GitHub Actions runs JVM/Lint/build on changes, with API 26/37 instrumentation on PRs,
+  tags and manual dispatch. Remote runs are recorded in `VERIFICATION.md`.
 
 The API 26 matrix passed all 33 tests, and the existing release key signs the 1.3 candidate.
 The publisher corpus checks 62 chapters across all three HTML rendering modes.

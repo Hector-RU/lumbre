@@ -47,7 +47,7 @@ and XOR the first 1040 font bytes. Only font resources declared in the manifest 
 the bounded resource stream decodes them in memory without extracting fonts. Other algorithms,
 including DRM and Adobe legacy obfuscation, and fixed-layout publications remain unsupported.
 
-## Highlights and notes (unreleased)
+## Highlights and notes (included in 1.3)
 
 Annotations store a book foreign key, resource path, owning chapter, half-open UTF-16 range,
 original quote, optional plain-text note, creation time, style ID and color ID. Styles and colors
@@ -160,3 +160,14 @@ on orientation/density changes; this prevents controls from resizing the reading
 Pagination waits for a visual commit both before measuring columns and before restoring native
 scroll. Explicit turns invalidate older resize callbacks. TTS binds only after the reader opens
 its voice controls; ordinary book opening does not start a speech engine.
+
+## 1.4 read-aloud evolution
+
+The expanded and compact players expose sentence/chapter navigation, narration seeking,
+offline voice selection, playback speed and a sleep timer. Sentence shading uses
+reader-owned rendering without altering publisher markup. Narration retains its text
+position when paused; stale viewport captures must not overwrite that position.
+Language matching accepts ISO-639-2 and underscore-separated tags, and unavailable
+voices fall back to other installed offline voices. Playback remains foreground-only.
+Room v5 and portable backup v4 are unchanged. Automated speech tests use the silent
+test engine; installed-engine completion requires the opt-in `DeviceSpeechTest`.

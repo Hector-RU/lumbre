@@ -2,6 +2,21 @@
 
 Each release must attach actual results, not infer device coverage from unit tests.
 
+## Current status for 1.4 — 25 October 2026
+
+Published 1.4 and integration PR #1 are merged into `main`. The main push passed its
+build gate and skipped device jobs. API 26 passed the full 39-test automatic suite in
+PR CI; the final PR API 37 job failed. The earlier API 37 retry passed 37 of 39 tests,
+with annotation-action discovery and last-page clamping unresolved. These results do
+not establish a passing full API 37 gate. See `VERIFICATION.md` for workflow links,
+local rerun results and manual-validation limits.
+
+The 25 October local API 37 rerun completed all 39 automatic tests: 38 passed,
+1 failed, 0 skipped. Annotation-action discovery timed out; last-page clamping
+passed locally. API 26 was not rerun locally. Physical acceptance remains pending.
+
+## Historical 1.3 matrix
+
 | Environment | Required checks | Status for 1.3 |
 | --- | --- | --- |
 | API 26 AOSP emulator, Chromium 58 | complete instrumentation suite, including backup and test TTS engine | 33 passed; stock AOSP WebView registered with a resource overlay |

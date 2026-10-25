@@ -108,10 +108,19 @@ but its API 37 job logged an APK installation failure despite a green status; it
 establish a full API 37 test pass. See [VERIFICATION.md](docs/VERIFICATION.md) for the
 separate local and CI evidence, historical 1.3 results and manual-validation limits.
 
-Integration audit (23 October 2026): the full automatic suite passed **39 tests on API 26**.
-The latest API 37 retry passed **37 of 39 tests**; annotation-action discovery and last-page
-clamping failed. [PR #1](https://github.com/Hector-RU/lumbre/pull/1) records the results and
-remains a draft pending resolution of those checks. See [verification](docs/VERIFICATION.md).
+Repository audit (25 October 2026): [PR #1](https://github.com/Hector-RU/lumbre/pull/1)
+was merged on 23 October; published 1.4 and the integration changes are included in `main`.
+The [main workflow](https://github.com/Hector-RU/lumbre/actions/runs/39930331087) passed
+the build gate but skipped device jobs. The full automatic suite previously passed
+**39 tests on API 26**; API 37 still has unresolved CI failures. The earlier retry passed
+**37 of 39 tests**, with annotation-action discovery and last-page clamping failing.
+The [final PR workflow](https://github.com/Hector-RU/lumbre/actions/runs/39903521027)
+also failed its API 37 job. See [verification](docs/VERIFICATION.md) for the separate results.
+
+Fresh local audit (25 October): **46 JVM tests passed**, debug/release/test APK builds
+passed, and Lint reported **0 errors / 28 warnings** per variant. The full automatic
+API 37 suite finished with **38 passed, 1 failed, 0 skipped**: the annotation-action
+wait timed out. A passing full device matrix is still pending.
 
 ## License
 

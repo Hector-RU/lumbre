@@ -54,7 +54,7 @@ matches the verified 1.1 distribution. Release notes are in `RELEASE_NOTES.md`; 
 and manual acceptance are recorded in `VERIFICATION.md`. Signing material remains outside Git.
 
 
-## Next iteration after 1.2 (unreleased)
+## Iteration after 1.2 (included in 1.3)
 
 Implemented standard IDPF font deobfuscation in the bounded resource stream, Room v3 persistent
 highlights/notes, native text selection actions in all reading modes, an annotation editor/list,
@@ -65,3 +65,12 @@ the initial deferrals above; the published 1.2 artifact remains historical.
 Annotation appearance refinement: Room v4 and portable backup v3 preserve style/color, with
 legacy defaults and backward restore compatibility. The editor offers a live preview, three
 styles and five accessible color choices. Cards improve quote/note hierarchy and long-text viewing.
+
+## Current delivery — 25 October 2026
+
+Lumbre 1.3 subsequently finalized Room v5 and backup v4. Published 1.4 uses
+versionName `1.4` and versionCode `5`, adds expanded/compact read-aloud players,
+sentence navigation/highlighting, voice fallback, a sleep timer and launcher artwork,
+and retains those data formats. Published source and integration PR #1 are now in
+`main`; the PR merged on 23 October. See `RELEASE_NOTES.md` for user-facing changes
+and `VERIFICATION.md` for current build results and the unresolved API 37 CI gate.

@@ -1,6 +1,7 @@
 package com.hector.epubreader
 
 import android.net.Uri
+import android.view.InputDevice
 import android.webkit.WebView
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.mutableStateOf
@@ -99,10 +100,12 @@ class AnnotationUiTest {
                 }
                 point.get() != null
             }
+            // Chromium distinguishes touch selection from other pointer tools. The deprecated
+            // three-argument constructor sends SOURCE_UNKNOWN / TOOL_TYPE_UNKNOWN.
             onView(isAssignableFrom(WebView::class.java)).perform(GeneralClickAction(Tap.LONG, { view ->
                 val origin = IntArray(2); view.getLocationOnScreen(origin)
                 floatArrayOf(origin[0] + point.get().first, origin[1] + point.get().second)
-            }, Press.FINGER))
+            }, Press.FINGER, InputDevice.SOURCE_TOUCHSCREEN, 0))
             // The selected-text action also belongs to the reader's accessibility node,
             // avoiding Android 17's remote floating-toolbar surface and its coordinates.
             val action = AtomicReference<Int>()

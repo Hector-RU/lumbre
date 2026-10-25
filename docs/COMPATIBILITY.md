@@ -15,6 +15,12 @@ The 25 October local API 37 rerun completed all 39 automatic tests: 38 passed,
 1 failed, 0 skipped. Annotation-action discovery timed out; last-page clamping
 passed locally. API 26 was not rerun locally. Physical acceptance remains pending.
 
+A later local follow-up on 25 October corrected the annotation test's ambiguous input
+source to an explicit touchscreen finger gesture. Both complete automatic suites then
+passed: API 26 / WebView 58 and API 37 / WebView 149 each ran 39 tests with no failures,
+errors or skips. Five additional API 37 annotation runs passed. These local results
+supersede the earlier local annotation failure; fresh remote device CI remains pending.
+
 ## Historical 1.3 matrix
 
 | Environment | Required checks | Status for 1.3 |

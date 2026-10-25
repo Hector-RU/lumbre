@@ -633,5 +633,52 @@ the run. API 26 was not rerun locally.
 Device evidence: ignored `test-artifacts/audit-2026-10-25-android.log`,
 `app/build/outputs/androidTest-results/connected/debug/TEST-Pixel_8(AVD) - 17.xml`
 and `app/build/reports/androidTests/connected/debug/index.html`.
-The repository changes are documentation only. All tests have **not** passed;
-the annotation regression and API 37 CI gate remain open.
+At the end of this initial audit, repository changes were documentation only and
+not all tests had passed. The annotation regression and API 37 CI gate remained
+open; the subsequent touch-input correction and local results are recorded below.
+
+## 25 October 2026 — explicit touch input for annotation regression
+
+The annotation UI test used Espresso's deprecated three-argument `GeneralClickAction`
+constructor. Inspection of the installed Espresso 3.7.0 source confirms that it passes
+input source `0` (`SOURCE_UNKNOWN`) and button state `0`; `MotionEvents` consequently
+assigns `TOOL_TYPE_UNKNOWN`. `Press.FINGER` controls coordinate precision, not the
+pointer's tool type. The test now explicitly supplies `InputDevice.SOURCE_TOUCHSCREEN`
+and button state `0`, which makes Espresso construct a finger touch event.
+
+This removes ambiguous synthetic input from a test of native touch selection. Production
+reader code, timeouts and all existing selection/editor/persistence/rendering assertions
+are unchanged. No JavaScript selection, manually opened ActionMode or retry of the
+long press replaces the native gesture. Temporary diagnostic logging/reflection was
+removed before building the final APKs.
+
+The pre-fix failure was intermittent: diagnostic runs reproduced a selection with no
+active annotation action, while a later control run passed all 39 automatic tests.
+Passing that control run alone was not treated as a fix. With explicit touch input,
+the full create/edit/delete regression passed five consecutive native runner invocations
+on API 37. These observations support the input correction; they do not prove a
+specific Chromium-internal failure mechanism or guarantee all future runs.
+
+The final build/JVM/Lint/APK pass completed successfully in 1m 19s. JVM remains
+46 passed with no failures/errors/skips (unchanged JVM inputs reused Gradle results),
+and debug/release Lint reports 0 errors / 28 warnings per variant. The final test APK
+was rebuilt and installed on both test emulators. The Gradle daemon was stopped
+before native instrumentation to release build memory.
+
+| Final native device check | Observed result |
+| --- | --- |
+| API 26 / AOSP x86 / WebView 58.0.3029.125 | 39 passed, 0 failed/errors/skipped; 184.191 seconds |
+| API 37 / Pixel 8 x86_64 / WebView 149.0.7827.5 | 39 passed, 0 failed/errors/skipped; 344.449 seconds |
+
+The isolated API 26 emulator was stopped after validation; its accessibility setting
+remained inactive. The existing API 37 emulator is retained.
+API 37 also retained inactive accessibility and an empty enabled-services setting.
+Both full automatic device suites passed with the final corrected test APK, including
+annotation creation/editing/deletion and last-page clamping.
+
+Evidence under ignored `test-artifacts/`: `annotation-fix-build.log`,
+`annotation-fix-touch-repeat-{1,2,3,4,5}.log`, `annotation-fix-api26-full.log`
+and `annotation-fix-api37-full.log`. Device suites exclude only opt-in
+`DeviceSpeechTest`, matching CI. Screenshot UiAutomation remains disabled.
+Earlier audit/CI failures above remain historical; local results do not replace
+a fresh remote API 37 CI gate or physical-device acceptance.

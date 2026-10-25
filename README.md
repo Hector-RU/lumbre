@@ -117,10 +117,16 @@ the build gate but skipped device jobs. The full automatic suite previously pass
 The [final PR workflow](https://github.com/Hector-RU/lumbre/actions/runs/39903521027)
 also failed its API 37 job. See [verification](docs/VERIFICATION.md) for the separate results.
 
-Fresh local audit (25 October): **46 JVM tests passed**, debug/release/test APK builds
+Initial local audit (25 October): **46 JVM tests passed**, debug/release/test APK builds
 passed, and Lint reported **0 errors / 28 warnings** per variant. The full automatic
 API 37 suite finished with **38 passed, 1 failed, 0 skipped**: the annotation-action
-wait timed out. A passing full device matrix is still pending.
+wait timed out.
+
+Local follow-up (25 October): the annotation test now injects an explicit touchscreen
+finger gesture. The complete automatic suites passed **39/39 on API 26 and 39/39 on
+API 37**, and the annotation regression passed five consecutive additional API 37 runs.
+Builds and Lint passed; no assertions or timeouts were relaxed. These local results are
+separate from the historical CI failures; a fresh remote device gate remains pending.
 
 ## License
 

@@ -9,9 +9,11 @@ Updated: 25 October 2026 (America/Santo_Domingo).
 - The main CI build gate passed, but device jobs were skipped for that push.
   API 26 passed the full 39-test automatic suite in PR CI; API 37 remains a failing gate.
   See `VERIFICATION.md` for workflow links and the separate local audit results.
-- The 25 October local rerun passed 46 JVM tests, all APK builds and Lint
-  (0 errors / 28 warnings per variant). API 37 passed 38 of 39 automatic tests;
-  fix the annotation-action timeout and obtain a passing full API 37 CI run.
+- The initial 25 October local audit passed 46 JVM tests, all APK builds and Lint
+  (0 errors / 28 warnings per variant), but API 37 passed only 38 of 39 automatic tests.
+  The follow-up supplies explicit touchscreen input to the annotation regression;
+  full local suites now pass 39/39 on both API 26 and API 37, with five additional
+  consecutive annotation passes. Obtain a fresh passing remote device CI run.
 - Physical-device TalkBack, audible offline voices, signed upgrades with populated data
   and cloud SAF providers remain manual acceptance gates for 1.4.
 
